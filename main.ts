@@ -22,6 +22,7 @@ export default class PasswordPlugin extends Plugin {
 	private modalEnterPassword: ModalEnterPassword;
 	private statusBarItemEl: HTMLElement;
 	private blurHandler: () => void;
+	recovering: boolean;
 
 	async onload() {
 		await this.loadSettings();
@@ -77,6 +78,7 @@ export default class PasswordPlugin extends Plugin {
 		this.updateStatusBar();
 
 		this.blurHandler = () => {
+			if (this.recovering) return;
 			if (this.settings.lockOnBlur && !this.settings.isLocked && this.settings.enablePass) {
 				this.lockVault();
 			}
@@ -199,12 +201,15 @@ export default class PasswordPlugin extends Plugin {
 			new Notice("No files to check.");
 			return;
 		}
+		this.recovering = true;
 		const key = this.settings.password;
+		let encrypted = 0;
 		let fixed = 0;
 		let failed = 0;
 		for (const f of files) {
 			const content = await this.app.vault.read(f);
 			if (!content.startsWith("U2FsdGVkX1")) continue;
+			encrypted++;
 			const first = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
 			if (!first || !first.startsWith("U2FsdGVkX1")) continue;
 			const second = CryptoJS.AES.decrypt(first, key).toString(CryptoJS.enc.Utf8);
@@ -215,7 +220,11 @@ export default class PasswordPlugin extends Plugin {
 				failed++;
 			}
 		}
-		new Notice(`Recovery done: ${fixed} fixed, ${failed} failed.`);
+		this.recovering = false;
+		let msg = `Recovery: ${files.length} files, ${encrypted} encrypted`;
+		if (fixed > 0) msg += `, ${fixed} fixed`;
+		if (failed > 0) msg += `, ${failed} FAILED`;
+		new Notice(msg, 8000);
 	}
 
 	updateStatusBar() {
