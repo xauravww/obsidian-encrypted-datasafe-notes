@@ -35,6 +35,10 @@ export class ModalEnterPassword extends Modal {
 		this.desc = null;
 	}
 
+	updatePluginIcon() {
+		try { (this.plugin as any).updateRibbonIcon?.(); } catch (_) {}
+	}
+
 	async onOpen() {
 		this.value = "";
 		this.plugin.settings.isLocked = true;
@@ -177,6 +181,7 @@ export class ModalEnterPassword extends Modal {
 			this.plugin.settings.isLocked = false;
 			this.submited = true;
 			this.plugin.toggleFlag = false;
+			this.updatePluginIcon();
 			this.close();
 		}
 	}

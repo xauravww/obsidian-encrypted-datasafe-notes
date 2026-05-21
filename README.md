@@ -1,49 +1,49 @@
-# <img height="26"  style="height: 26px; max-width: 100%;" src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/2023_Obsidian_logo.svg/1200px-2023_Obsidian_logo.svg.png"  > Obsidian Protected Note
+# Encrypted Datasafe Notes
 
-<!-- ![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22protected-note%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json) -->
+A fork of [obsidian-protected-note](https://github.com/mmiksaa/obsidian-protected-note) with enhanced features.
 
-### Set Password and hide your notes from other people. 🔒
+## Features
 
-This plugin for [Obsidian](https://obsidian.md/) let you set any password you want!
+- **Password-protect** your notes with AES encryption
+- **Lock/Unlock** toggle with dynamic ribbon icon (changes icon when locked vs unlocked)
+- **File encryption** — encrypts all markdown files in the protected folder on disk
+- **Corruption recovery** — detects and fixes double-encrypted files
+- **Encryption status** — shows encrypted vs plaintext file count
+- **Auto-lock** — locks after inactivity
 
-**ATTENTION ❗** \
-Note that encryption is not enabled by default, and the plugin can be used without it. Also, keep in mind that encryption is still in beta.
+## Commands
 
-**Why do i need that?** \
-Imagine you have something private in your notes. Well, you're in luck, because with Protected Note, your secrets are safe! ;D
+| Command | Description |
+|---------|-------------|
+| Lock vault | Encrypt all files in the protected folder |
+| Unlock vault | Decrypt all files (password required) |
+| Show encryption status | Quick summary of file encryption state |
+| Recover corrupted files | Detect and fix double-encrypted files |
 
-![screenshot-full](https://sun9-75.userapi.com/impg/yxoep7oJW71jyiVbX5FqQf0_b2XHTm81BhE4UA/LlQPHCwZdWI.jpg?size=1130x799&quality=95&sign=463771f135303a6d367a1d6b2353ce6c&type=album)
+## Emergency Recovery Script
 
-## Set password 🔑
+If files get corrupted (e.g., double-encrypted), run the Python recovery script:
 
--   Go to settings > community plugins > protected note > enable password.
+```bash
+cd /path/to/your/vault
+python3 scripts/lockctl.py
+```
 
-## Encrypt and Decrypt 💾
+The script auto-detects the vault and provides lock/unlock/recover/status functions. It uses the same AES encryption as the plugin.
 
--   Back up your files before enabling encryption to prevent data loss.
--   When you close Obsidian, your files won't be encrypted because Obsidian can't run encryption while closing.
--   To encrypt all your files upon exit, use the ribbon icon.
+## Installation
 
-> If you'd like to help with my code, feel free to reach out on GitHub or open a pull request.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/xauravww/obsidian-encrypted-datasafe-notes/releases)
+2. Copy them to `<vault>/.obsidian/plugins/encrypted-datasafe-notes/`
+3. Enable the plugin in Obsidian settings → Community plugins
 
-</br>
+## Building from source
 
-## Settings (all) ⚙
+```bash
+npm install
+npm run build
+```
 
-**Password Protection**: click Enable to set a new password. To Disable the password, click the toggle and verify your identity.
+## License
 
-**Protected Folder**: select a specific folder to protect.
-
-**Auto-Lock**: automatically lock Obsidian when you're inactive.
-
-**Animations**: turn this off to remove animations. This will stop the lock emoji animation in the title and the blur transition when you confirm your password.
-
-**File encryption**: Secure your files with AES encryption.
-
----
-
-**This plugin will be developed and added new features** 🧬
-
-If you find this plugin and workflow useful, you can give me some coffee ☕
-
-[<img height="36" style="height: 36px; max-width: 100%;" src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png"  alt="Buy Me a Coffee at ko-fi.com">](https://buymeacoffee.com/gadgihanovm)
+MIT — based on [obsidian-protected-note](https://github.com/mmiksaa/obsidian-protected-note) (MIT) by Mikail Gadzhikhanov.

@@ -1,11 +1,11 @@
 {
-	"id": "protected-note",
-	"name": "Protected Note",
-	"version": "2.0.0",
+	"id": "encrypted-datasafe-notes",
+	"name": "Encrypted Datasafe Notes",
+	"version": "2.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Set Password and Protect your notes from other people. Encrypt and Decrypt all notes!",
-	"author": "Mikail Gadzhikhanov",
-	"authorUrl": "https://github.com/mmiksaa",
-	"fundingUrl": "https://buymeacoffee.com/gadgihanovm",
+	"description": "Password-protect and encrypt notes. Features: lock/unlock with dynamic icon, corruption recovery, encryption status viewer.",
+	"author": "xauravww",
+	"authorUrl": "https://github.com/xauravww",
+	"fundingUrl": "",
 	"isDesktopOnly": false
 }
