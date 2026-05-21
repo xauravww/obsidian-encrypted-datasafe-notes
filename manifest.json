@@ -3,7 +3,7 @@
 	"name": "Encrypted Datasafe Notes",
 	"version": "2.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Password-protect and encrypt notes. Features: lock/unlock with dynamic icon, corruption recovery, encryption status viewer.",
+	"description": "AES-encrypt markdown notes with lock/unlock vault, auto-lock timer, right-click encrypt/decrypt, corruption recovery, search decrypt, status bar indicator, file explorer decorations, and password change.",
 	"author": "xauravww",
 	"authorUrl": "https://github.com/xauravww",
 	"fundingUrl": "",
