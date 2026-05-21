@@ -97,16 +97,13 @@ export default class PasswordPlugin extends Plugin {
 
 	updateRibbonIcon() {
 		if (!this.ribbonItem) return;
-		const paths = this.ribbonItem.querySelectorAll("path");
-		if (paths.length >= 2) {
-			const shackle = paths[1];
-			if (this.settings.isLocked) {
-				shackle.removeAttribute("stroke-dasharray");
-				shackle.removeAttribute("stroke-dashoffset");
-			} else {
-				shackle.setAttribute("stroke-dasharray", "4 4");
-				shackle.setAttribute("stroke-dashoffset", "-4");
-			}
+		const newSvgString = this.settings.isLocked ? lockSVG : unlockSVG;
+		const tempDiv = document.createElement("div");
+		tempDiv.innerHTML = newSvgString;
+		const newSvg = tempDiv.firstElementChild as SVGElement;
+		const existingSvg = this.ribbonItem.querySelector("svg");
+		if (existingSvg && newSvg) {
+			existingSvg.replaceWith(newSvg);
 		}
 		this.ribbonItem.setAttribute("aria-label",
 			this.settings.isLocked ? "Vault is locked" : "Vault is unlocked");
