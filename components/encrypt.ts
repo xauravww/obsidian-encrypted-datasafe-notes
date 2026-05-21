@@ -19,13 +19,12 @@ export class Encrypt {
 		for (const file of files) {
 			const content = await this.app.vault.read(file);
 
-			if (content.length > 0) {
+			if (content.length > 0 && !content.startsWith("U2FsdGVkX1")) {
 				const encryptedContent = this.encryptContent(content);
 				await this.app.vault.modify(file, encryptedContent);
 			}
 		}
 
-		// Устанавливаем флаг и сохраняем настройки
 		this.plugin.settings.fileEncrypt.isAlreadyEncrypted = true;
 		await this.plugin.saveSettings();
 	}

@@ -21,9 +21,11 @@ export class Decrypt {
 		for (const file of files) {
 			const content = await this.app.vault.read(file);
 
-			if (content.length > 1) {
+			if (content.startsWith("U2FsdGVkX1")) {
 				const decryptedContent = this.decryptContent(content);
-				await this.app.vault.modify(file, decryptedContent);
+				if (decryptedContent) {
+					await this.app.vault.modify(file, decryptedContent);
+				}
 			}
 		}
 

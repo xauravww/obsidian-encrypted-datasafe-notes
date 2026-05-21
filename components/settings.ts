@@ -15,6 +15,7 @@ export interface PluginSettings {
 	folder: string;
 	isLocked: boolean;
 	lockOnBlur: boolean;
+	searchDecrypt: boolean;
 }
 
 export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
 	folder: "",
 	isLocked: false,
 	lockOnBlur: false,
+	searchDecrypt: true,
 };
 
 export class SettingsTab extends PluginSettingTab {
@@ -180,6 +182,44 @@ export class SettingsTab extends PluginSettingTab {
 					new ModalChangePassword(this.app, this.plugin).open();
 				})
 			);
+
+		new Setting(containerEl)
+			.setName("Decrypt on unlock for search")
+			.setDesc(
+				"Decrypt all files when unlocking so Obsidian's search can index them. Turn off if you prefer files to stay encrypted at rest."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.searchDecrypt)
+					.onChange(async (value) => {
+						this.plugin.settings.searchDecrypt = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		this.containerEl.createEl("h2", {
+			text: "⌨ Hotkeys",
+		});
+
+		const cmdList = containerEl.createEl("div", {
+			cls: "setting-item",
+		});
+		cmdList.createEl("div", {
+			cls: "setting-item-info",
+			text: "Set hotkeys in Settings → Hotkeys. Search for any of these commands:",
+		});
+		const cmdNames = [
+			"Lock vault",
+			"Unlock vault",
+			"Show encryption status",
+			"Recover corrupted (double-encrypted) files",
+			"Encrypt this file",
+			"Decrypt this file",
+		];
+		const ul = cmdList.createEl("ul");
+		for (const name of cmdNames) {
+			ul.createEl("li", { text: name });
+		}
 
 		this.containerEl.createEl("h2", {
 			text: "🔧 Recovery",

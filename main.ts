@@ -117,6 +117,88 @@ export default class PasswordPlugin extends Plugin {
 		});
 
 		this.addSettingTab(new SettingsTab(this.app, this));
+
+		this.registerEvent(
+			this.app.workspace.on("file-menu", (menu, file) => {
+				if (
+					!this.settings.enablePass ||
+					!this.settings.folder ||
+					!(file instanceof TFile) ||
+					file.extension !== "md" ||
+					!file.path.startsWith(
+						this.settings.folder + "/"
+					)
+				)
+					return;
+
+				menu.addItem((item) => {
+					item.setTitle("Encrypt this file")
+						.setIcon("lock")
+						.onClick(async () => {
+							const content =
+								await this.app.vault.read(file);
+							if (
+								content.startsWith("U2FsdGVkX1")
+							) {
+								new Notice(
+									`${file.name} is already encrypted`
+								);
+								return;
+							}
+							new Notice(
+								`Encrypting ${file.name}...`
+							);
+							const encrypted =
+								CryptoJS.AES.encrypt(
+									content,
+									this.settings.password
+								).toString();
+							await this.app.vault.modify(
+								file,
+								encrypted
+							);
+							this.decorateFileExplorer();
+							new Notice(
+								`Encrypted: ${file.name}`
+							);
+						});
+				});
+
+				menu.addItem((item) => {
+					item.setTitle("Decrypt this file")
+						.setIcon("unlock")
+						.onClick(async () => {
+							const content =
+								await this.app.vault.read(file);
+							if (
+								!content.startsWith("U2FsdGVkX1")
+							) {
+								new Notice(
+									`${file.name} is not encrypted`
+								);
+								return;
+							}
+							new Notice(
+								`Decrypting ${file.name}...`
+							);
+							const decrypted = CryptoJS.AES.decrypt(
+								content,
+								this.settings.password
+							).toString(CryptoJS.enc.Utf8);
+							if (decrypted) {
+								await this.app.vault.modify(
+									file,
+									decrypted
+								);
+								this.decorateFileExplorer();
+								new Notice(
+									`Decrypted: ${file.name}`
+								);
+							}
+						});
+				});
+			})
+		);
 	}
 
 	// ⚠ WARNING: Do NOT change this method. The SVGs in svgIcons.ts
@@ -348,6 +430,7 @@ export default class PasswordPlugin extends Plugin {
 						folder: old.folder ?? "Personal",
 						isLocked: old.isLocked ?? true,
 						lockOnBlur: false,
+						searchDecrypt: true,
 					};
 					await this.saveData(this.settings);
 					new Notice("Migrated settings from protected-note plugin");

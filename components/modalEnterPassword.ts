@@ -160,10 +160,13 @@ export class ModalEnterPassword extends Modal {
 				await new Promise((resolve) => setTimeout(resolve, 50));
 			}
 
-			if (
-				this.plugin.settings.fileEncrypt &&
-				this.plugin.settings.fileEncrypt.isAlreadyEncrypted
-			) {
+			const shouldDecrypt =
+				(this.plugin.settings.fileEncrypt &&
+					this.plugin.settings.fileEncrypt
+						.isAlreadyEncrypted) ||
+				this.plugin.settings.searchDecrypt;
+
+			if (shouldDecrypt) {
 				if (this.desc) {
 					this.desc.classList.remove("password_modal__alert");
 					this.desc.innerText = "🛆 Decrypting all files..";
