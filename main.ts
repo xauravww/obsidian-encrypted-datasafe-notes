@@ -95,6 +95,9 @@ export default class PasswordPlugin extends Plugin {
 		this.addSettingTab(new SettingsTab(this.app, this));
 	}
 
+	// ⚠ WARNING: Do NOT change this method. The SVGs in svgIcons.ts
+	// depend on this exact logic (querySelectorAll("path") → paths[1] → toggle dasharray).
+	// Changing this will BREAK the icon rendering.
 	updateRibbonIcon() {
 		if (!this.ribbonItem) return;
 		const paths = this.ribbonItem.querySelectorAll("path");
