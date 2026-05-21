@@ -28,20 +28,19 @@ export class FolderLock {
 		const settings = this.plugin.settings;
 
 		this.app.workspace.on("file-open", (file: TFile) => {
-			const condition =
-				!!file &&
-				file.path.startsWith(`${settings.folder}/`) &&
-				settings.folder;
-
-			if (condition && settings.isLocked) this.openModal();
+			const inFolder = settings.folder
+				? file?.path.startsWith(`${settings.folder}/`)
+				: true;
+			if (inFolder && settings.isLocked) this.openModal();
 		});
 	}
 
 	closeOnLocked() {
+		if (!this.plugin.settings.isLocked) return;
 		const file = this.app.workspace.getActiveFile();
-		const condition =
-			!!file && file.path.startsWith(`${this.plugin.settings.folder}/`);
-		this.plugin.settings.isLocked = true;
-		if (condition) this.openModal();
+		const inFolder = this.plugin.settings.folder
+			? file?.path.startsWith(`${this.plugin.settings.folder}/`)
+			: true;
+		if (inFolder) this.openModal();
 	}
 }

@@ -178,6 +178,7 @@ export class ModalEnterPassword extends Modal {
 					this.app,
 					this.plugin
 				).decryptFilesInDirectory();
+				this.plugin.encryptedPaths.clear();
 			}
 
 			//we use submited in case we clicked out our password modal

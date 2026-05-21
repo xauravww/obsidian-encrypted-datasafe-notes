@@ -24,21 +24,27 @@ export default class PasswordPlugin extends Plugin {
 	private blurHandler: () => void;
 	private explorerObserver: MutationObserver;
 	recovering: boolean;
+	encryptedPaths: Set<string>;
 
 	async onload() {
 		await this.loadSettings();
+		this.encryptedPaths = new Set();
 
 		this.folderLock = new FolderLock(this.app, this);
 		this.modalEnterPassword = new ModalEnterPassword(this.app, this);
 
 		this.app.workspace.onLayoutReady(async () => {
-			if (this.settings.enablePass && !this.settings.folder) {
-				this.modalEnterPassword.open();
-			}
+			await this.reconcileEncryptedPaths();
 
-			if (this.settings.enablePass && this.settings.folder) {
+			if (this.settings.enablePass) {
 				this.folderLock.lock();
-				this.folderLock.closeOnLocked();
+				if (this.settings.isLocked) {
+					if (!this.settings.folder) {
+						this.modalEnterPassword.open();
+					} else {
+						this.folderLock.closeOnLocked();
+					}
+				}
 			}
 
 			if (this.settings.enablePass && this.settings.autoLock !== "0") {
@@ -151,7 +157,9 @@ export default class PasswordPlugin extends Plugin {
 								tf,
 								encrypted
 							);
+							this.encryptedPaths.add(tf.path);
 							this.decorateFileExplorer();
+							this.updateStatusBar();
 							new Notice(
 								`Encrypted: ${tf.name}`
 							);
@@ -192,7 +200,9 @@ export default class PasswordPlugin extends Plugin {
 									tf,
 									decrypted
 								);
+								this.encryptedPaths.delete(tf.path);
 								this.decorateFileExplorer();
+								this.updateStatusBar();
 								new Notice(
 									`Decrypted: ${tf.name}`
 								);
@@ -300,19 +310,17 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	async lockVault(silent = false) {
-		if (!this.settings.folder) {
-			if (!silent) new Notice("Set a protected folder first.");
-			return;
-		}
 		if (!silent) new Notice("Encrypting files...");
 		await new Encrypt(this.app, this).encryptFilesInDirectory();
+		await this.reconcileEncryptedPaths();
 		this.settings.isLocked = true;
 		await this.saveSettings();
 		this.updateRibbonIcon();
 		this.updateStatusBar();
 		this.decorateFileExplorer();
 		if (!silent) {
-			new Notice(`'${this.settings.folder}' folder is locked 🔒`);
+			const label = this.settings.folder || "Vault";
+			new Notice(`${label} is locked 🔒`);
 			new FolderLock(this.app, this).closeOnLocked();
 		}
 	}
@@ -324,6 +332,7 @@ export default class PasswordPlugin extends Plugin {
 			this,
 			true,
 			() => {
+				this.encryptedPaths.clear();
 				this.updateRibbonIcon();
 				this.updateStatusBar();
 				this.decorateFileExplorer();
@@ -336,7 +345,7 @@ export default class PasswordPlugin extends Plugin {
 	async showStatus() {
 		const files = new GetMDFiles(this.app, this).getFiles();
 		if (!files || files.length === 0) {
-			new Notice("No markdown files found in protected folder.");
+			new Notice("No markdown files found." + (this.settings.folder ? " in " + this.settings.folder : ""));
 			return;
 		}
 		let encrypted = 0;
@@ -417,28 +426,41 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	decorateFileExplorer() {
-		if (!this.settings.folder) return;
 		const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
 		if (!explorer) return;
 		const container = explorer.view.containerEl;
 
-		const files = container.querySelectorAll(".nav-file, .nav-file-title");
-		files.forEach((file: Element) => {
+		const items = container.querySelectorAll(".nav-file, .nav-file-title");
+		items.forEach((file: Element) => {
 			const el = file as HTMLElement;
 			const path = el.getAttribute("data-path");
-			if (path && path.startsWith(this.settings.folder + "/")) {
-				const title = el.matches(".nav-file-title")
-					? el
-					: el.querySelector(".nav-file-title");
-				if (title) {
-					if (this.settings.isLocked) {
-						title.addClass("is-encrypted");
-					} else {
-						title.removeClass("is-encrypted");
-					}
+			if (!path) return;
+			if (this.settings.folder && !path.startsWith(this.settings.folder + "/")) return;
+			const title = el.matches(".nav-file-title")
+				? el
+				: el.querySelector(".nav-file-title");
+			if (title) {
+				if (this.encryptedPaths.has(path)) {
+					title.addClass("is-encrypted");
+					title.removeClass("is-decrypted");
+				} else {
+					title.removeClass("is-encrypted");
+					title.addClass("is-decrypted");
 				}
 			}
 		});
+	}
+
+	private async reconcileEncryptedPaths() {
+		this.encryptedPaths.clear();
+		const files = new GetMDFiles(this.app, this).getFiles();
+		if (!files) return;
+		for (const f of files) {
+			const content = await this.app.vault.read(f);
+			if (content.startsWith("U2FsdGVkX1")) {
+				this.encryptedPaths.add(f.path);
+			}
+		}
 	}
 
 	async changePassword(oldPass: string, newPass: string): Promise<boolean> {

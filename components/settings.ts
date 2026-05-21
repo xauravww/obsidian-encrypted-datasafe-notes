@@ -272,7 +272,7 @@ export class SettingsTab extends PluginSettingTab {
 	async scanStatus() {
 		const files = new GetMDFiles(this.app, this.plugin).getFiles();
 		if (!files || files.length === 0) {
-			new Notice("No markdown files found in protected folder.");
+			new Notice("No markdown files found." + (this.plugin.settings.folder ? " in " + this.plugin.settings.folder : ""));
 			return;
 		}
 		let encrypted = 0;

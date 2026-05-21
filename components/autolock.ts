@@ -1,7 +1,5 @@
 import main from "main";
-import { App, Notice } from "obsidian";
-import { ModalEnterPassword } from "./modalEnterPassword";
-import { FolderLock } from "./folderLock";
+import { App } from "obsidian";
 
 export class AutoLock {
 	app: App;
@@ -39,12 +37,7 @@ export class AutoLock {
 
 		if (!settings.isLocked && this.seconds !== "0") {
 			this.idleTimeout = setTimeout(() => {
-				if (settings.folder) {
-					new FolderLock(this.app, this.plugin).closeOnLocked();
-					new Notice(`'${settings.folder}' folder is locked 🔒`);
-				} else {
-					new ModalEnterPassword(this.app, this.plugin).open();
-				}
+				this.plugin.lockVault(true);
 			}, Number(this.seconds) * 1000);
 		}
 	}
