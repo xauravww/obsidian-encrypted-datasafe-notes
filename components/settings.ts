@@ -2,6 +2,8 @@ import main from "../main";
 import { ModalEnterPassword } from "components/modalEnterPassword";
 import { ModalSetPassword } from "components/modalSetPassword";
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { GetMDFiles } from "./getMDFiles";
+import * as CryptoJS from "crypto-js";
 
 export interface PluginSettings {
 	password: string;
@@ -155,6 +157,28 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		this.containerEl.createEl("h2", {
+			text: "🔧 Recovery",
+		});
+
+		new Setting(containerEl)
+			.setName("Scan encryption status")
+			.setDesc("Check how many files are encrypted, plaintext, or double-encrypted.")
+			.addButton((btn) =>
+				btn.setButtonText("Scan").onClick(async () => {
+					await this.scanStatus();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("Fix double-encrypted files")
+			.setDesc("Recover files encrypted twice (corrupted). Decrypts back to single-encryption.")
+			.addButton((btn) =>
+				btn.setButtonText("Recover").onClick(async () => {
+					await this.recoverFiles();
+				})
+			);
+
+		this.containerEl.createEl("h2", {
 			text: "🛆 High files protection (beta)",
 		});
 
@@ -178,5 +202,59 @@ export class SettingsTab extends PluginSettingTab {
 						}
 					})
 			);
+	}
+
+	async scanStatus() {
+		const files = new GetMDFiles(this.app, this.plugin).getFiles();
+		if (!files || files.length === 0) {
+			new Notice("No markdown files found in protected folder.");
+			return;
+		}
+		let encrypted = 0;
+		let plain = 0;
+		const problems: string[] = [];
+		for (const f of files) {
+			const content = await this.app.vault.read(f);
+			if (content.startsWith("U2FsdGVkX1")) {
+				encrypted++;
+				const key = this.plugin.settings.password;
+				const decrypted = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
+				if (decrypted && decrypted.startsWith("U2FsdGVkX1")) {
+					problems.push(f.path);
+				}
+			} else {
+				plain++;
+			}
+		}
+		let msg = `${encrypted} encrypted, ${plain} plaintext`;
+		if (problems.length > 0) {
+			msg += ` | ⚠ ${problems.length} double-encrypted`;
+		}
+		new Notice(msg, 8000);
+	}
+
+	async recoverFiles() {
+		const files = new GetMDFiles(this.app, this.plugin).getFiles();
+		if (!files || files.length === 0) {
+			new Notice("No files to check.");
+			return;
+		}
+		const key = this.plugin.settings.password;
+		let fixed = 0;
+		let failed = 0;
+		for (const f of files) {
+			const content = await this.app.vault.read(f);
+			if (!content.startsWith("U2FsdGVkX1")) continue;
+			const first = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
+			if (!first || !first.startsWith("U2FsdGVkX1")) continue;
+			const second = CryptoJS.AES.decrypt(first, key).toString(CryptoJS.enc.Utf8);
+			if (second) {
+				await this.app.vault.modify(f, second);
+				fixed++;
+			} else {
+				failed++;
+			}
+		}
+		new Notice(`Recovery done: ${fixed} fixed, ${failed} failed.`);
 	}
 }
