@@ -1,4 +1,4 @@
-import { Notice, Plugin, addIcon, TFile } from "obsidian";
+import { Notice, Plugin, addIcon, TFile, Modal } from "obsidian";
 import { ModalEnterPassword } from "./components/modalEnterPassword";
 import {
 	DEFAULT_SETTINGS,
@@ -165,15 +165,19 @@ export default class PasswordPlugin extends Plugin {
 						});
 				});
 
-				menu.addItem((item) => {
-					item.setTitle("Decrypt this file")
-						.setIcon("unlock")
-						.onClick(async () => {
-							const tf = file as TFile;
+			menu.addItem((item) => {
+				item.setTitle("Decrypt this file")
+					.setIcon("unlock")
+					.onClick(async () => {
+						const tf = file as TFile;
+
+						const doDecrypt = async () => {
 							const content =
 								await this.app.vault.read(tf);
 							if (
-								!content.startsWith("U2FsdGVkX1")
+								!content.startsWith(
+									"U2FsdGVkX1"
+								)
 							) {
 								new Notice(
 									`${tf.name} is not encrypted`
@@ -187,7 +191,9 @@ export default class PasswordPlugin extends Plugin {
 								CryptoJS.AES.decrypt(
 									content,
 									this.settings.password
-								).toString(CryptoJS.enc.Utf8);
+								).toString(
+									CryptoJS.enc.Utf8
+								);
 							if (decrypted) {
 								await this.app.vault.modify(
 									tf,
@@ -198,8 +204,84 @@ export default class PasswordPlugin extends Plugin {
 									`Decrypted: ${tf.name}`
 								);
 							}
-						});
-				});
+						};
+
+						if (this.settings.isLocked) {
+							const pwModal = new Modal(
+								this.app
+							);
+							pwModal.titleEl.setText(
+								"Enter password to decrypt this file"
+							);
+
+							const input =
+								pwModal.contentEl.createEl(
+									"input",
+									{
+										type: "password",
+										placeholder:
+											"Vault password",
+									}
+								);
+
+							const btnRow =
+								pwModal.contentEl.createDiv(
+									{
+										cls:
+											"modal-button-container",
+									}
+								);
+
+							const cancelBtn =
+								btnRow.createEl("button", {
+									text: "Cancel",
+								});
+							cancelBtn.addEventListener(
+								"click",
+								() => pwModal.close()
+							);
+
+							const submitBtn =
+								btnRow.createEl("button", {
+									text: "Decrypt",
+									cls: "mod-cta",
+								});
+
+							const checkPass = () => {
+								if (
+									hash(input.value) ===
+									this.settings.password
+								) {
+									pwModal.close();
+									doDecrypt();
+								} else {
+									new Notice(
+										"Wrong password"
+									);
+									input.value = "";
+									input.focus();
+								}
+							};
+
+							submitBtn.addEventListener(
+								"click",
+								checkPass
+							);
+							input.addEventListener(
+								"keypress",
+								(e) => {
+									if (e.key === "Enter")
+										checkPass();
+								}
+							);
+
+							pwModal.open();
+							input.focus();
+						} else {
+							await doDecrypt();
+						}
+					});
+			});
 			})
 		);
 	}
