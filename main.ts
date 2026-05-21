@@ -22,6 +22,7 @@ export default class PasswordPlugin extends Plugin {
 	private modalEnterPassword: ModalEnterPassword;
 	private statusBarItemEl: HTMLElement;
 	private blurHandler: () => void;
+	private explorerObserver: MutationObserver;
 	recovering: boolean;
 
 	async onload() {
@@ -48,8 +49,14 @@ export default class PasswordPlugin extends Plugin {
 				).startTimer();
 			}
 
-			this.decorateFileExplorer();
+			this.setupExplorerObserver();
 		});
+
+		this.registerEvent(
+			this.app.workspace.on("layout-change", () => {
+				this.setupExplorerObserver();
+			})
+		);
 
 		addIcon("lock-closed", lockSVG);
 		addIcon("lock-open", unlockSVG);
@@ -234,17 +241,35 @@ export default class PasswordPlugin extends Plugin {
 		);
 	}
 
+	private setupExplorerObserver() {
+		const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+		if (!explorer) return;
+		const container = explorer.view.containerEl;
+		if (this.explorerObserver) this.explorerObserver.disconnect();
+		this.explorerObserver = new MutationObserver(() => {
+			this.decorateFileExplorer();
+		});
+		this.explorerObserver.observe(container, {
+			childList: true,
+			subtree: true,
+		});
+		this.decorateFileExplorer();
+	}
+
 	decorateFileExplorer() {
 		if (!this.settings.folder) return;
 		const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
 		if (!explorer) return;
 		const container = explorer.view.containerEl;
-		const files = container.querySelectorAll(".nav-file");
+
+		const files = container.querySelectorAll(".nav-file, .nav-file-title");
 		files.forEach((file: Element) => {
 			const el = file as HTMLElement;
 			const path = el.getAttribute("data-path");
 			if (path && path.startsWith(this.settings.folder + "/")) {
-				const title = el.querySelector(".nav-file-title");
+				const title = el.matches(".nav-file-title")
+					? el
+					: el.querySelector(".nav-file-title");
 				if (title) {
 					if (this.settings.isLocked) {
 						title.addClass("is-encrypted");
@@ -294,6 +319,7 @@ export default class PasswordPlugin extends Plugin {
 
 	onunload() {
 		window.removeEventListener("blur", this.blurHandler);
+		if (this.explorerObserver) this.explorerObserver.disconnect();
 		this.settings.enablePass = false;
 		this.settings.password = "";
 		this.settings.autoLock = "0";

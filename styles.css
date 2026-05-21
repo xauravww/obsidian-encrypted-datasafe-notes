@@ -61,14 +61,18 @@
 	}
 }
 
+.nav-file-title.is-encrypted {
+	border-left: 3px solid var(--color-accent, #6c8cff);
+	background: var(--background-modifier-border, rgba(100, 100, 100, 0.15));
+	border-radius: 0 4px 4px 0;
+}
+
 .nav-file-title.is-encrypted .nav-file-title-content::after {
 	content: " 🔒";
 	font-size: 0.85em;
-	opacity: 0.7;
-}
-
-.nav-file-title.is-encrypted {
-	opacity: 0.85;
+	margin-left: auto;
+	padding-left: 4px;
+	opacity: 0.8;
 }
 
 @keyframes shake {
