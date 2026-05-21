@@ -1,6 +1,7 @@
 import main from "../main";
 import { ModalEnterPassword } from "components/modalEnterPassword";
 import { ModalSetPassword } from "components/modalSetPassword";
+import { ModalChangePassword } from "./modalChangePassword";
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { GetMDFiles } from "./getMDFiles";
 import * as CryptoJS from "crypto-js";
@@ -13,6 +14,7 @@ export interface PluginSettings {
 	autoLock: string;
 	folder: string;
 	isLocked: boolean;
+	lockOnBlur: boolean;
 }
 
 export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
 	autoLock: "0",
 	folder: "",
 	isLocked: false,
+	lockOnBlur: false,
 };
 
 export class SettingsTab extends PluginSettingTab {
@@ -155,6 +158,28 @@ export class SettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
+
+		new Setting(containerEl)
+			.setName("Lock on window blur")
+			.setDesc("Automatically lock the vault when the window loses focus")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.lockOnBlur)
+					.onChange(async (value) => {
+						this.plugin.settings.lockOnBlur = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Change password")
+			.setDesc("Set a new password for your vault.")
+			.setDisabled(!this.plugin.settings.enablePass)
+			.addButton((btn) =>
+				btn.setButtonText("Change Password").onClick(() => {
+					new ModalChangePassword(this.app, this.plugin).open();
+				})
+			);
 
 		this.containerEl.createEl("h2", {
 			text: "🔧 Recovery",

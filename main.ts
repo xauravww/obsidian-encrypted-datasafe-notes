@@ -11,6 +11,7 @@ import { FolderLock } from "components/folderLock";
 import { Encrypt } from "./components/encrypt";
 import { Decrypt } from "./components/decrypt";
 import { GetMDFiles } from "./components/getMDFiles";
+import { hash } from "./components/hash";
 import * as CryptoJS from "crypto-js";
 
 export default class PasswordPlugin extends Plugin {
@@ -19,6 +20,8 @@ export default class PasswordPlugin extends Plugin {
 	private ribbonItem: HTMLElement;
 	private folderLock: FolderLock;
 	private modalEnterPassword: ModalEnterPassword;
+	private statusBarItemEl: HTMLElement;
+	private blurHandler: () => void;
 
 	async onload() {
 		await this.loadSettings();
@@ -43,6 +46,8 @@ export default class PasswordPlugin extends Plugin {
 					this.settings.autoLock
 				).startTimer();
 			}
+
+			this.decorateFileExplorer();
 		});
 
 		addIcon("lock-closed", lockSVG);
@@ -67,6 +72,16 @@ export default class PasswordPlugin extends Plugin {
 			}
 		);
 		this.updateRibbonIcon();
+
+		this.statusBarItemEl = this.addStatusBarItem();
+		this.updateStatusBar();
+
+		this.blurHandler = () => {
+			if (this.settings.lockOnBlur && !this.settings.isLocked && this.settings.enablePass) {
+				this.lockVault();
+			}
+		};
+		window.addEventListener("blur", this.blurHandler);
 
 		this.addCommand({
 			id: "lock-vault",
@@ -115,18 +130,22 @@ export default class PasswordPlugin extends Plugin {
 			this.settings.isLocked ? "Vault is locked" : "Vault is unlocked");
 	}
 
-	async lockVault() {
+	async lockVault(silent = false) {
 		if (!this.settings.folder) {
-			new Notice("Set a protected folder first.");
+			if (!silent) new Notice("Set a protected folder first.");
 			return;
 		}
-		new Notice("Encrypting files...");
+		if (!silent) new Notice("Encrypting files...");
 		await new Encrypt(this.app, this).encryptFilesInDirectory();
 		this.settings.isLocked = true;
 		await this.saveSettings();
 		this.updateRibbonIcon();
-		new Notice(`'${this.settings.folder}' folder is locked 🔒`);
-		new FolderLock(this.app, this).closeOnLocked();
+		this.updateStatusBar();
+		this.decorateFileExplorer();
+		if (!silent) {
+			new Notice(`'${this.settings.folder}' folder is locked 🔒`);
+			new FolderLock(this.app, this).closeOnLocked();
+		}
 	}
 
 	async unlockVault() {
@@ -135,7 +154,11 @@ export default class PasswordPlugin extends Plugin {
 			this.app,
 			this,
 			true,
-			() => this.updateRibbonIcon(),
+			() => {
+				this.updateRibbonIcon();
+				this.updateStatusBar();
+				this.decorateFileExplorer();
+			},
 			() => {}
 		);
 		modal.open();
@@ -195,7 +218,73 @@ export default class PasswordPlugin extends Plugin {
 		new Notice(`Recovery done: ${fixed} fixed, ${failed} failed.`);
 	}
 
+	updateStatusBar() {
+		if (!this.statusBarItemEl) return;
+		this.statusBarItemEl.setText(
+			this.settings.isLocked ? "🔒 Locked" : "🔓 Unlocked"
+		);
+	}
+
+	decorateFileExplorer() {
+		if (!this.settings.folder) return;
+		const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+		if (!explorer) return;
+		const container = explorer.view.containerEl;
+		const files = container.querySelectorAll(".nav-file");
+		files.forEach((file: Element) => {
+			const el = file as HTMLElement;
+			const path = el.getAttribute("data-path");
+			if (path && path.startsWith(this.settings.folder + "/")) {
+				const title = el.querySelector(".nav-file-title");
+				if (title) {
+					if (this.settings.isLocked) {
+						title.addClass("is-encrypted");
+					} else {
+						title.removeClass("is-encrypted");
+					}
+				}
+			}
+		});
+	}
+
+	async changePassword(oldPass: string, newPass: string): Promise<boolean> {
+		const oldHash = hash(oldPass);
+		const newHash = hash(newPass);
+
+		if (oldHash !== this.settings.password) {
+			return false;
+		}
+
+		const files = new GetMDFiles(this.app, this).getFiles();
+		if (files) {
+			for (const file of files) {
+				const content = await this.app.vault.read(file);
+				let plaintext = content;
+
+				if (content.startsWith("U2FsdGVkX1")) {
+					const decrypted = CryptoJS.AES.decrypt(content, oldHash).toString(CryptoJS.enc.Utf8);
+					if (decrypted) plaintext = decrypted;
+				}
+
+				if (plaintext.length > 0) {
+					const reEncrypted = CryptoJS.AES.encrypt(plaintext, newHash).toString();
+					await this.app.vault.modify(file, reEncrypted);
+				}
+			}
+		}
+
+		this.settings.password = newHash;
+		this.settings.isLocked = true;
+		await this.saveSettings();
+		this.updateRibbonIcon();
+		this.updateStatusBar();
+		this.decorateFileExplorer();
+
+		return true;
+	}
+
 	onunload() {
+		window.removeEventListener("blur", this.blurHandler);
 		this.settings.enablePass = false;
 		this.settings.password = "";
 		this.settings.autoLock = "0";
@@ -223,6 +312,7 @@ export default class PasswordPlugin extends Plugin {
 						autoLock: old.autoLock ?? "0",
 						folder: old.folder ?? "Personal",
 						isLocked: old.isLocked ?? true,
+						lockOnBlur: false,
 					};
 					await this.saveData(this.settings);
 					new Notice("Migrated settings from protected-note plugin");
