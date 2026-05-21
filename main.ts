@@ -123,13 +123,6 @@ export default class PasswordPlugin extends Plugin {
 				if (!this.settings.enablePass) return;
 				if (!(file instanceof TFile)) return;
 				if (file.extension !== "md") return;
-				if (
-					this.settings.folder &&
-					!file.path.startsWith(
-						this.settings.folder + "/"
-					)
-				)
-					return;
 
 				menu.addItem((item) => {
 					item.setTitle("Encrypt this file")
