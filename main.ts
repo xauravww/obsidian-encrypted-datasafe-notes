@@ -120,11 +120,11 @@ export default class PasswordPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu, file) => {
+				if (!this.settings.enablePass) return;
+				if (!(file instanceof TFile)) return;
+				if (file.extension !== "md") return;
 				if (
-					!this.settings.enablePass ||
-					!this.settings.folder ||
-					!(file instanceof TFile) ||
-					file.extension !== "md" ||
+					this.settings.folder &&
 					!file.path.startsWith(
 						this.settings.folder + "/"
 					)
@@ -135,18 +135,19 @@ export default class PasswordPlugin extends Plugin {
 					item.setTitle("Encrypt this file")
 						.setIcon("lock")
 						.onClick(async () => {
+							const tf = file as TFile;
 							const content =
-								await this.app.vault.read(file);
+								await this.app.vault.read(tf);
 							if (
 								content.startsWith("U2FsdGVkX1")
 							) {
 								new Notice(
-									`${file.name} is already encrypted`
+									`${tf.name} is already encrypted`
 								);
 								return;
 							}
 							new Notice(
-								`Encrypting ${file.name}...`
+								`Encrypting ${tf.name}...`
 							);
 							const encrypted =
 								CryptoJS.AES.encrypt(
@@ -154,12 +155,12 @@ export default class PasswordPlugin extends Plugin {
 									this.settings.password
 								).toString();
 							await this.app.vault.modify(
-								file,
+								tf,
 								encrypted
 							);
 							this.decorateFileExplorer();
 							new Notice(
-								`Encrypted: ${file.name}`
+								`Encrypted: ${tf.name}`
 							);
 						});
 				});
@@ -168,31 +169,33 @@ export default class PasswordPlugin extends Plugin {
 					item.setTitle("Decrypt this file")
 						.setIcon("unlock")
 						.onClick(async () => {
+							const tf = file as TFile;
 							const content =
-								await this.app.vault.read(file);
+								await this.app.vault.read(tf);
 							if (
 								!content.startsWith("U2FsdGVkX1")
 							) {
 								new Notice(
-									`${file.name} is not encrypted`
+									`${tf.name} is not encrypted`
 								);
 								return;
 							}
 							new Notice(
-								`Decrypting ${file.name}...`
+								`Decrypting ${tf.name}...`
 							);
-							const decrypted = CryptoJS.AES.decrypt(
-								content,
-								this.settings.password
-							).toString(CryptoJS.enc.Utf8);
+							const decrypted =
+								CryptoJS.AES.decrypt(
+									content,
+									this.settings.password
+								).toString(CryptoJS.enc.Utf8);
 							if (decrypted) {
 								await this.app.vault.modify(
-									file,
+									tf,
 									decrypted
 								);
 								this.decorateFileExplorer();
 								new Notice(
-									`Decrypted: ${file.name}`
+									`Decrypted: ${tf.name}`
 								);
 							}
 						});
