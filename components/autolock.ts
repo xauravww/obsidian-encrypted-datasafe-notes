@@ -9,14 +9,14 @@ export class AutoLock {
 	userActive: boolean;
 	idleTimeout: NodeJS.Timeout;
 	isAlreadyOpen: boolean;
-	minutes: string;
+	seconds: string;
 
-	constructor(app: App, plugin: main, minutes: string) {
+	constructor(app: App, plugin: main, seconds: string) {
 		this.app = app;
 		this.plugin = plugin;
 		this.userActive = true;
 		this.isAlreadyOpen = false;
-		this.minutes = minutes;
+		this.seconds = seconds;
 	}
 
 	async startTimer() {
@@ -37,7 +37,7 @@ export class AutoLock {
 		clearTimeout(this.idleTimeout);
 		const settings = this.plugin.settings;
 
-		if (!settings.isLocked && this.minutes !== "0") {
+		if (!settings.isLocked && this.seconds !== "0") {
 			this.idleTimeout = setTimeout(() => {
 				if (settings.folder) {
 					new FolderLock(this.app, this.plugin).closeOnLocked();
@@ -45,7 +45,7 @@ export class AutoLock {
 				} else {
 					new ModalEnterPassword(this.app, this.plugin).open();
 				}
-			}, Number(this.minutes) * 60000);
+			}, Number(this.seconds) * 1000);
 		}
 	}
 }

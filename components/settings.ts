@@ -132,19 +132,19 @@ export class SettingsTab extends PluginSettingTab {
 			.setDisabled(this.plugin.settings.enablePass);
 
 		new Setting(containerEl)
-			.setName("Auto lock")
+			.setName("Auto lock (seconds)")
 			.setDesc(
-				"The number of minutes before locking if you're not active. Set 0 if you dont want to use auto lock"
+				"Number of seconds of inactivity before locking. Set 0 to disable."
 			)
 			.addText((text) => {
-				text.setValue(this.plugin.settings.autoLock).onChange(
-					async (value) => {
+				text.setPlaceholder("e.g. 300 for 5 min")
+					.setValue(this.plugin.settings.autoLock)
+					.onChange(async (value) => {
 						if (/^\d+$/.test(value)) {
 							this.plugin.settings.autoLock = value;
 							await this.plugin.saveSettings();
 						}
-					}
-				);
+					});
 			});
 
 		new Setting(containerEl)
