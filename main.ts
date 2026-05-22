@@ -10,7 +10,7 @@ import { AutoLock } from "components/autolock";
 import { FolderLock } from "components/folderLock";
 import { Encrypt } from "./components/encrypt";
 import { Decrypt } from "./components/decrypt";
-import { GetMDFiles } from "./components/getMDFiles";
+import { GetVaultFiles } from "./components/getMDFiles";
 import { hash } from "./components/hash";
 import * as CryptoJS from "crypto-js";
 
@@ -128,7 +128,7 @@ export default class PasswordPlugin extends Plugin {
 			this.app.workspace.on("file-menu", (menu, file) => {
 				if (!this.settings.enablePass) return;
 				if (!(file instanceof TFile)) return;
-				if (file.extension !== "md") return;
+				if (!["md", "canvas", "excalidraw"].includes(file.extension)) return;
 
 				menu.addItem((item) => {
 					item.setTitle("Encrypt this file")
@@ -343,7 +343,7 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	async showStatus() {
-		const files = new GetMDFiles(this.app, this).getFiles();
+		const files = new GetVaultFiles(this.app, this).getFiles();
 		if (!files || files.length === 0) {
 			new Notice("No markdown files found." + (this.settings.folder ? " in " + this.settings.folder : ""));
 			return;
@@ -372,7 +372,7 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	async recoverFiles() {
-		const files = new GetMDFiles(this.app, this).getFiles();
+		const files = new GetVaultFiles(this.app, this).getFiles();
 		if (!files || files.length === 0) {
 			new Notice("No files to check.");
 			return;
@@ -453,7 +453,7 @@ export default class PasswordPlugin extends Plugin {
 
 	private async reconcileEncryptedPaths() {
 		this.encryptedPaths.clear();
-		const files = new GetMDFiles(this.app, this).getFiles();
+		const files = new GetVaultFiles(this.app, this).getFiles();
 		if (!files) return;
 		for (const f of files) {
 			const content = await this.app.vault.read(f);
@@ -471,7 +471,7 @@ export default class PasswordPlugin extends Plugin {
 			return false;
 		}
 
-		const files = new GetMDFiles(this.app, this).getFiles();
+		const files = new GetVaultFiles(this.app, this).getFiles();
 		if (files) {
 			for (const file of files) {
 				const content = await this.app.vault.read(file);

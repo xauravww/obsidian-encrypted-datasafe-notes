@@ -1,7 +1,9 @@
 import main from "main";
 import { App, TFile, TFolder } from "obsidian";
 
-export class GetMDFiles {
+const SUPPORTED_EXTENSIONS = new Set(["md", "canvas", "excalidraw"]);
+
+export class GetVaultFiles {
 	app: App;
 	plugin: main;
 
@@ -18,25 +20,27 @@ export class GetMDFiles {
 			const folder = this.app.vault.getAbstractFileByPath(path);
 
 			if (folder instanceof TFolder) {
-				files = this.getMDFilesInFolder(folder);
+				files = this.getFilesInFolder(folder);
 			} else {
 				return;
 			}
 		} else {
-			files = this.app.vault.getMarkdownFiles();
+			files = this.app.vault.getFiles().filter((f) =>
+				SUPPORTED_EXTENSIONS.has(f.extension)
+			);
 		}
 
 		return files;
 	}
 
-	getMDFilesInFolder(folder: TFolder): TFile[] {
+	getFilesInFolder(folder: TFolder): TFile[] {
 		const files: TFile[] = [];
 
 		folder.children.forEach((child) => {
-			if (child instanceof TFile && child.extension === "md") {
+			if (child instanceof TFile && SUPPORTED_EXTENSIONS.has(child.extension)) {
 				files.push(child);
 			} else if (child instanceof TFolder) {
-				files.push(...this.getMDFilesInFolder(child));
+				files.push(...this.getFilesInFolder(child));
 			}
 		});
 

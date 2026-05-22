@@ -1,7 +1,7 @@
 import main from "main";
 import { App, TFile } from "obsidian";
 import * as CryptoJS from "crypto-js";
-import { GetMDFiles } from "./getMDFiles";
+import { GetVaultFiles } from "./getMDFiles";
 
 export class Decrypt {
 	app: App;
@@ -15,7 +15,7 @@ export class Decrypt {
 	}
 
 	async decryptFilesInDirectory() {
-		const files = new GetMDFiles(this.app, this.plugin).getFiles();
+		const files = new GetVaultFiles(this.app, this.plugin).getFiles();
 		if (!files) return;
 
 		for (const file of files) {

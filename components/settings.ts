@@ -3,7 +3,7 @@ import { ModalEnterPassword } from "components/modalEnterPassword";
 import { ModalSetPassword } from "components/modalSetPassword";
 import { ModalChangePassword } from "./modalChangePassword";
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
-import { GetMDFiles } from "./getMDFiles";
+import { GetVaultFiles } from "./getMDFiles";
 import * as CryptoJS from "crypto-js";
 
 export interface PluginSettings {
@@ -270,7 +270,7 @@ export class SettingsTab extends PluginSettingTab {
 	}
 
 	async scanStatus() {
-		const files = new GetMDFiles(this.app, this.plugin).getFiles();
+		const files = new GetVaultFiles(this.app, this.plugin).getFiles();
 		if (!files || files.length === 0) {
 			new Notice("No markdown files found." + (this.plugin.settings.folder ? " in " + this.plugin.settings.folder : ""));
 			return;
@@ -299,7 +299,7 @@ export class SettingsTab extends PluginSettingTab {
 	}
 
 	async recoverFiles() {
-		const files = new GetMDFiles(this.app, this.plugin).getFiles();
+		const files = new GetVaultFiles(this.app, this.plugin).getFiles();
 		if (!files || files.length === 0) {
 			new Notice("No files to check.");
 			return;
