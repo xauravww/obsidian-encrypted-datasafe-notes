@@ -8,6 +8,11 @@ import * as CryptoJS from "crypto-js";
 
 export interface PluginSettings {
 	password: string;
+	passwordVerifier: string;
+	decoyPasswordVerifier: string;
+	encryptedMVK: string;
+	recoveryEncryptedMVK: string;
+	hideEncrypted: boolean;
 	enablePass: boolean;
 	animations: boolean;
 	fileEncrypt: { encrypt: boolean; isAlreadyEncrypted: boolean };
@@ -20,6 +25,11 @@ export interface PluginSettings {
 
 export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
 	password: "",
+	passwordVerifier: "",
+	decoyPasswordVerifier: "",
+	encryptedMVK: "",
+	recoveryEncryptedMVK: "",
+	hideEncrypted: false,
 	enablePass: false,
 	animations: true,
 	fileEncrypt: { encrypt: false, isAlreadyEncrypted: false },
@@ -194,6 +204,38 @@ export class SettingsTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.searchDecrypt = value;
 						await this.plugin.saveSettings();
+					})
+			);
+
+		this.containerEl.createEl("h2", {
+			text: "🕵️‍♂️ Plausible Deniability (Decoy Vault)",
+		});
+
+		new Setting(containerEl)
+			.setName("Set decoy password")
+			.setDesc("If forced to unlock your vault, entering this fake password will safely unlock an alternative set of notes while keeping your real secrets encrypted.")
+			.setDisabled(!this.plugin.settings.enablePass)
+			.addButton((btn) =>
+				btn.setButtonText("Set Decoy").onClick(() => {
+					new ModalSetPassword(this.app, this.plugin, async (newHash) => {
+						if (newHash) {
+							this.plugin.settings.decoyPasswordVerifier = CryptoJS.AES.encrypt("VALID", newHash).toString();
+							await this.plugin.saveSettings();
+						}
+					}, true).open();
+				})
+			);
+			
+		new Setting(containerEl)
+			.setName("Hide encrypted files from file explorer")
+			.setDesc("When the vault is locked (or you log in with a decoy), encrypted files will completely vanish from the left sidebar so an attacker doesn't know they exist.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.hideEncrypted)
+					.onChange(async (value) => {
+						this.plugin.settings.hideEncrypted = value;
+						await this.plugin.saveSettings();
+						this.plugin.decorateFileExplorer();
 					})
 			);
 

@@ -23,7 +23,8 @@ export default class PasswordPlugin extends Plugin {
 	private statusBarItemEl: HTMLElement;
 	private blurHandler: () => void;
 	private explorerObserver: MutationObserver;
-	recovering: boolean;
+	recovering: boolean = false;
+	isDecoyMode: boolean = false;
 	encryptedPaths: Set<string>;
 
 	async onload() {
@@ -120,6 +121,28 @@ export default class PasswordPlugin extends Plugin {
 			id: "recover-files",
 			name: "Recover corrupted (double-encrypted) files",
 			callback: () => this.recoverFiles(),
+		});
+
+		this.addCommand({
+			id: "panic-button",
+			name: "Panic Button (Lock & Hide)",
+			callback: async () => {
+				this.lockVault(true);
+				this.app.workspace.iterateAllLeaves((leaf) => {
+					if (leaf.view.getViewType() === "markdown") {
+						const file = (leaf.view as any).file;
+						if (file) {
+							const inFolder = this.settings.folder
+								? file.path.startsWith(this.settings.folder + "/")
+								: true;
+							if (inFolder) {
+								leaf.detach();
+							}
+						}
+					}
+				});
+				this.app.workspace.getLeaf(false);
+			},
 		});
 
 		this.addSettingTab(new SettingsTab(this.app, this));
@@ -467,29 +490,49 @@ export default class PasswordPlugin extends Plugin {
 		const oldHash = hash(oldPass);
 		const newHash = hash(newPass);
 
-		if (oldHash !== this.settings.password) {
-			return false;
+		let isValid = false;
+		if (this.settings.passwordVerifier) {
+			try {
+				const decrypted = CryptoJS.AES.decrypt(this.settings.passwordVerifier, oldHash).toString(CryptoJS.enc.Utf8);
+				if (decrypted === "VALID") isValid = true;
+			} catch (e) {}
+		} else if (this.settings.password && oldHash === this.settings.password) {
+			isValid = true;
 		}
 
-		const files = new GetVaultFiles(this.app, this).getFiles();
-		if (files) {
-			for (const file of files) {
-				const content = await this.app.vault.read(file);
-				let plaintext = content;
+		if (!isValid) return false;
 
-				if (content.startsWith("U2FsdGVkX1")) {
-					const decrypted = CryptoJS.AES.decrypt(content, oldHash).toString(CryptoJS.enc.Utf8);
-					if (decrypted) plaintext = decrypted;
+		if (this.settings.encryptedMVK) {
+			// Fast O(1) path using Master Vault Key architecture
+			try {
+				const mvk = CryptoJS.AES.decrypt(this.settings.encryptedMVK, oldHash).toString(CryptoJS.enc.Utf8);
+				if (mvk) {
+					this.settings.encryptedMVK = CryptoJS.AES.encrypt(mvk, newHash).toString();
 				}
+			} catch (e) {}
+		} else {
+			// Legacy fallback: re-encrypt all files
+			const files = new GetVaultFiles(this.app, this).getFiles();
+			if (files) {
+				for (const file of files) {
+					const content = await this.app.vault.read(file);
+					let plaintext = content;
 
-				if (plaintext.length > 0) {
-					const reEncrypted = CryptoJS.AES.encrypt(plaintext, newHash).toString();
-					await this.app.vault.modify(file, reEncrypted);
+					if (content.startsWith("U2FsdGVkX1")) {
+						const decrypted = CryptoJS.AES.decrypt(content, oldHash).toString(CryptoJS.enc.Utf8);
+						if (decrypted) plaintext = decrypted;
+					}
+
+					if (plaintext.length > 0) {
+						const reEncrypted = CryptoJS.AES.encrypt(plaintext, newHash).toString();
+						await this.app.vault.modify(file, reEncrypted);
+					}
 				}
 			}
 		}
 
 		this.settings.password = newHash;
+		this.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", newHash).toString();
 		this.settings.isLocked = true;
 		await this.saveSettings();
 		this.updateRibbonIcon();
@@ -502,46 +545,28 @@ export default class PasswordPlugin extends Plugin {
 	onunload() {
 		window.removeEventListener("blur", this.blurHandler);
 		if (this.explorerObserver) this.explorerObserver.disconnect();
-		this.settings.enablePass = false;
-		this.settings.password = "";
-		this.settings.autoLock = "0";
-		this.saveSettings();
 	}
 
 	async loadSettings() {
 		const saved = await this.loadData();
-		if (saved && saved.password) {
+		if (saved && (saved.passwordVerifier || saved.password)) {
 			this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+			
+			// If we just loaded a vault that was locked, the RAM password must be cleared!
+			// If it was already a verifier, we clear the password so it's not held in RAM.
+			if (this.settings.passwordVerifier) {
+				this.settings.password = "";
+			}
 			return;
 		}
-		try {
-			const oldPath = ".obsidian/plugins/protected-note/data.json";
-			const oldFile = this.app.vault.getAbstractFileByPath(oldPath);
-			if (oldFile instanceof TFile) {
-				const content = await this.app.vault.read(oldFile);
-				const old = JSON.parse(content);
-				if (old.password) {
-					this.settings = {
-						password: old.password,
-						enablePass: old.enablePass ?? true,
-						animations: old.animations ?? true,
-						fileEncrypt: old.fileEncrypt ?? { encrypt: true, isAlreadyEncrypted: true },
-						autoLock: old.autoLock ?? "0",
-						folder: old.folder ?? "Personal",
-						isLocked: old.isLocked ?? true,
-						lockOnBlur: false,
-						searchDecrypt: true,
-					};
-					await this.saveData(this.settings);
-					new Notice("Migrated settings from protected-note plugin");
-					return;
-				}
-			}
-		} catch (_) {}
+		
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {});
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		const toSave = Object.assign({}, this.settings);
+		// NEVER save the plain hash to disk
+		toSave.password = ""; 
+		await this.saveData(toSave);
 	}
 }

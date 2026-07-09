@@ -1,20 +1,24 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import main from "../main";
 import { hash } from "./hash";
+import { ModalShowRecovery } from "./modalRecovery";
+import CryptoJS from "crypto-js";
 
 export class ModalSetPassword extends Modal {
 	plugin: main;
 	value: string;
 	value_pass: string;
 	value_repass: string;
-	onSubmit?: () => void;
+	onSubmit?: (hashValue?: string) => void;
+	isDecoy?: boolean;
 
-	constructor(app: App, plugin: main, onSubmit?: () => void) {
+	constructor(app: App, plugin: main, onSubmit?: (hashValue?: string) => void, isDecoy?: boolean) {
 		super(app);
 		this.plugin = plugin;
 		this.value_pass = "";
 		this.value_repass = "";
 		this.onSubmit = onSubmit;
+		this.isDecoy = isDecoy;
 	}
 
 	onOpen() {
@@ -22,7 +26,7 @@ export class ModalSetPassword extends Modal {
 
 		modalEl.classList.add("password_modal");
 
-		contentEl.createEl("h1", { text: "Create the Password" });
+		contentEl.createEl("h1", { text: this.isDecoy ? "Create Decoy Password" : "Create the Password" });
 
 		const div_input = contentEl.createDiv({ cls: "password_modal__box" });
 
@@ -78,13 +82,28 @@ export class ModalSetPassword extends Modal {
 			this.value_pass === this.value_repass &&
 			this.value_pass.length >= 1
 		) {
-			this.plugin.settings.password = hash(this.value_pass);
-			await this.plugin.saveSettings();
+			const hashed = hash(this.value_pass);
+			if (!this.isDecoy) {
+				const mvk = CryptoJS.lib.WordArray.random(32).toString();
+				const code = CryptoJS.lib.WordArray.random(16).toString().toUpperCase().match(/.{1,4}/g)?.join('-') || "ERR-CODE";
+				
+				this.plugin.settings.password = hashed;
+				this.plugin.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", hashed).toString();
+				this.plugin.settings.encryptedMVK = CryptoJS.AES.encrypt(mvk, hashed).toString();
+				this.plugin.settings.recoveryEncryptedMVK = CryptoJS.AES.encrypt(mvk, hash(code)).toString();
+				
+				await this.plugin.saveSettings();
+				this.plugin.toggleFlag = true;
 
-			//set the flag to true if our requirements are met.
-			this.plugin.toggleFlag = true;
-
-			new Notice("you successfully created the password 🔑");
+				new ModalShowRecovery(this.app, code).open();
+			}
+			new Notice(this.isDecoy ? "Decoy password created 🕵️‍♂️" : "you successfully created the password 🔑");
+			
+			if (this.onSubmit) {
+				this.onSubmit(hashed);
+				this.onSubmit = undefined; // prevent onClose from firing again
+			}
+			
 			this.close();
 		} else {
 			//set a message to desc if the inputs arnt the same

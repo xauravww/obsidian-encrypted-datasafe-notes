@@ -3,6 +3,7 @@ import { App, Modal, Notice, Setting, moment } from "obsidian";
 import { hash } from "./hash";
 import { Decrypt } from "./decrypt";
 import { Encrypt } from "./encrypt";
+import { ModalRecovery } from "./modalRecovery";
 
 export class ModalEnterPassword extends Modal {
 	plugin: main;
@@ -91,13 +92,21 @@ export class ModalEnterPassword extends Modal {
 		new Setting(contentEl)
 			.setName("Please enter your password to verify")
 			.setClass("password_modal__inner")
-			.addButton((btn) =>
-				btn
-					.setButtonText("SUBMIT")
+			.addButton((btn) => {
+				btn.setButtonText("SUBMIT")
 					.setCta()
 					.onClick(() => {
 						this.comparePassword(lockIcon);
-					})
+					});
+			});
+
+		if (this.plugin.settings.recoveryEncryptedMVK) {
+			const resetBtn = contentEl.createEl("button", { text: "Forgot Password?", cls: "mod-warning", attr: { style: "margin-top: 20px; width: 100%;" } });
+			resetBtn.addEventListener("click", () => {
+				this.close();
+				new ModalRecovery(this.app, this.plugin).open();
+			});
+		}
 			);
 
 		this.desc = document.querySelector(
@@ -135,7 +144,30 @@ export class ModalEnterPassword extends Modal {
 		) as HTMLInputElement;
 		input.value = "";
 
-		if (hash(this.value) !== this.plugin.settings.password) {
+		const inputHash = hash(this.value);
+		let isValid = false;
+		let isDecoy = false;
+
+		if (this.plugin.settings.passwordVerifier) {
+			try {
+				const decrypted = CryptoJS.AES.decrypt(this.plugin.settings.passwordVerifier, inputHash).toString(CryptoJS.enc.Utf8);
+				if (decrypted === "VALID") isValid = true;
+			} catch (e) {}
+		} else if (this.plugin.settings.password && inputHash === this.plugin.settings.password) {
+			isValid = true;
+		}
+
+		if (!isValid && this.plugin.settings.decoyPasswordVerifier) {
+			try {
+				const decoyDecrypted = CryptoJS.AES.decrypt(this.plugin.settings.decoyPasswordVerifier, inputHash).toString(CryptoJS.enc.Utf8);
+				if (decoyDecrypted === "VALID") {
+					isValid = true;
+					isDecoy = true;
+				}
+			} catch (e) {}
+		}
+
+		if (!isValid) {
 			//if the password isnt correct
 
 			this.value = "";
@@ -155,6 +187,21 @@ export class ModalEnterPassword extends Modal {
 				}, 10);
 			}
 		} else {
+			if (this.plugin.settings.encryptedMVK && !isDecoy) {
+				const mvk = CryptoJS.AES.decrypt(this.plugin.settings.encryptedMVK, inputHash).toString(CryptoJS.enc.Utf8);
+				this.plugin.settings.password = mvk || inputHash;
+			} else {
+				this.plugin.settings.password = inputHash; // Save into RAM for decryption
+			}
+			
+			this.plugin.isDecoyMode = isDecoy;
+
+			// Upgrade legacy users to verifier
+			if (!this.plugin.settings.passwordVerifier && !isDecoy) {
+				this.plugin.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", inputHash).toString();
+				this.plugin.saveSettings(); 
+			}
+
 			if (this.plugin.settings.animations) {
 				lockIcon.textContent = "🔓";
 				await new Promise((resolve) => setTimeout(resolve, 50));

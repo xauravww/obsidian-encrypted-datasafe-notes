@@ -61,25 +61,27 @@
 	}
 }
 
+body.agy-hide-encrypted .nav-file-title.is-encrypted {
+	display: none !important;
+}
+
 .nav-file-title.is-encrypted {
 	border-left: 3px solid var(--color-accent, #6c8cff);
 	background: var(--background-modifier-border, rgba(100, 100, 100, 0.15));
 	border-radius: 0 4px 4px 0;
 }
 
-.nav-file-title.is-encrypted .nav-file-title-content::after {
-	content: " 🔒";
-	font-size: 0.85em;
-	margin-left: auto;
-	padding-left: 4px;
+.nav-file-title.is-encrypted .nav-file-title-content::before {
+	content: "🔴 ";
+	font-size: 0.9em;
+	margin-right: 4px;
 	opacity: 0.8;
 }
 
-.nav-file-title.is-decrypted .nav-file-title-content::after {
-	content: " 🔓";
-	font-size: 0.85em;
-	margin-left: auto;
-	padding-left: 4px;
+.nav-file-title.is-decrypted .nav-file-title-content::before {
+	content: "🟢 ";
+	font-size: 0.9em;
+	margin-right: 4px;
 	opacity: 0.8;
 }
 
