@@ -55,19 +55,20 @@ export class ModalEnterPassword extends Modal {
 		app_container?.classList.add("app-container__lock_password");
 
 		modalEl.classList.add("password_modal");
-		modalEl.style.background = "#0f0f13";
-		modalEl.style.border = "1px solid rgba(255, 255, 255, 0.08)";
-		modalEl.style.boxShadow = "0 25px 50px -12px rgba(0, 0, 0, 0.8)";
-		modalEl.style.borderRadius = "16px";
-		modalEl.style.padding = "0";
+		modalEl.setCssStyles({
+			background: "#0f0f13",
+			border: "1px solid rgba(255, 255, 255, 0.08)",
+			boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.8)",
+			borderRadius: "16px",
+			padding: "0"
+		});
 
 		const closeBtn = modalEl.querySelector(".modal-close-button");
 		if (closeBtn) closeBtn.remove();
 
 		contentEl.empty();
 		contentEl.addClass("mac-settings-view");
-		contentEl.style.padding = "32px";
-		contentEl.style.position = "relative"; // Ensure absolute positioning works for close btn
+		contentEl.setCssStyles({ padding: "32px", position: "relative" }); // Ensure absolute positioning works for close btn
 
 		if (this.isClosable) {
 			const customCloseBtn = contentEl.createEl("button", {
@@ -76,8 +77,8 @@ export class ModalEnterPassword extends Modal {
 				}
 			});
 			setIcon(customCloseBtn, "x");
-			customCloseBtn.addEventListener("mouseover", () => customCloseBtn.style.opacity = "1");
-			customCloseBtn.addEventListener("mouseout", () => customCloseBtn.style.opacity = "0.7");
+			customCloseBtn.addEventListener("mouseover", () => customCloseBtn.setCssStyles({ opacity: "1" }));
+			customCloseBtn.addEventListener("mouseout", () => customCloseBtn.setCssStyles({ opacity: "0.7" }));
 			customCloseBtn.addEventListener("click", () => this.close());
 		}
 
@@ -179,7 +180,7 @@ export class ModalEnterPassword extends Modal {
 			const errorDiv = this.contentEl.querySelector(".error-message") as HTMLDivElement;
 			if (errorDiv) {
 				errorDiv.innerText = `Sorry, wrong password.`;
-				errorDiv.style.display = "block";
+				errorDiv.setCssStyles({ display: "block" });
 			}
 		} else {
 			if (this.plugin.settings.encryptedMVK) {

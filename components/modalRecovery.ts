@@ -36,16 +36,16 @@ export class ModalShowRecovery extends Modal {
 		});
 		setIcon(copyBtn, "copy");
 		
-		copyBtn.addEventListener("mouseenter", () => copyBtn.style.background = "rgba(255,255,255,0.2)");
-		copyBtn.addEventListener("mouseleave", () => copyBtn.style.background = "rgba(255,255,255,0.1)");
+		copyBtn.addEventListener("mouseenter", () => copyBtn.setCssStyles({ background: "rgba(255,255,255,0.2)" }));
+		copyBtn.addEventListener("mouseleave", () => copyBtn.setCssStyles({ background: "rgba(255,255,255,0.1)" }));
 		copyBtn.addEventListener("click", async () => {
 			await navigator.clipboard.writeText(this.code);
 			setIcon(copyBtn, "check");
-			copyBtn.style.color = "#22c55e";
+			copyBtn.setCssStyles({ color: "#22c55e" });
 			new Notice("Recovery code copied to clipboard!");
 			setTimeout(() => {
 				setIcon(copyBtn, "copy");
-				copyBtn.style.color = "#a1a1aa";
+				copyBtn.setCssStyles({ color: "#a1a1aa" });
 			}, 2000);
 		});
 

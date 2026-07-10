@@ -360,17 +360,19 @@ export default class PasswordPlugin extends Plugin {
 		if (this.settings.isLocked || !this.settings.password) {
 			const pwModal = new Modal(this.app);
 			pwModal.modalEl.classList.add("password_modal");
-			pwModal.modalEl.style.background = "#0f0f13";
-			pwModal.modalEl.style.border = "1px solid rgba(255, 255, 255, 0.08)";
-			pwModal.modalEl.style.boxShadow = "0 24px 48px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset";
-			pwModal.modalEl.style.borderRadius = "16px";
+			pwModal.modalEl.setCssStyles({
+				background: "#0f0f13",
+				border: "1px solid rgba(255, 255, 255, 0.08)",
+				boxShadow: "0 24px 48px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset",
+				borderRadius: "16px"
+			});
 
-			pwModal.titleEl.style.display = "none";
+			pwModal.titleEl.setCssStyles({ display: "none" });
 			
 			const contentEl = pwModal.contentEl;
 			contentEl.empty();
 			contentEl.addClass("mac-settings-view");
-			contentEl.style.padding = "32px";
+			contentEl.setCssStyles({ padding: "32px" });
 
 			const div_main = contentEl.createDiv({
 				attr: { style: "max-width: 400px; margin: auto;" }
@@ -445,7 +447,7 @@ export default class PasswordPlugin extends Plugin {
 					doDecrypt();
 				} else {
 					errorDiv.innerText = "Wrong password";
-					errorDiv.style.display = "block";
+					errorDiv.setCssStyles({ display: "block" });
 					input.value = "";
 					input.focus();
 				}
@@ -465,16 +467,18 @@ export default class PasswordPlugin extends Plugin {
 	async promptRecoveryMode(tf: TFile) {
 		const pwModal = new Modal(this.app);
 		pwModal.modalEl.classList.add("password_modal");
-		pwModal.modalEl.style.background = "#0f0f13";
-		pwModal.modalEl.style.border = "1px solid rgba(255, 255, 255, 0.08)";
-		pwModal.modalEl.style.boxShadow = "0 24px 48px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset";
-		pwModal.modalEl.style.borderRadius = "16px";
-		pwModal.titleEl.style.display = "none";
+		pwModal.modalEl.setCssStyles({
+			background: "#0f0f13",
+			border: "1px solid rgba(255, 255, 255, 0.08)",
+			boxShadow: "0 24px 48px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset",
+			borderRadius: "16px"
+		});
+		pwModal.titleEl.setCssStyles({ display: "none" });
 		
 		const contentEl = pwModal.contentEl;
 		contentEl.empty();
 		contentEl.addClass("mac-settings-view");
-		contentEl.style.padding = "32px";
+		contentEl.setCssStyles({ padding: "32px" });
 
 		const div_main = contentEl.createDiv({
 			attr: { style: "max-width: 400px; margin: auto;" }
@@ -572,11 +576,11 @@ export default class PasswordPlugin extends Plugin {
 					setTimeout(() => this.clearEncryptionBanner(tf), 350);
 				} else {
 					errorDiv.innerText = "Incorrect password or corrupted file.";
-					errorDiv.style.display = "block";
+					errorDiv.setCssStyles({ display: "block" });
 				}
 			} catch (e) {
 				errorDiv.innerText = "Incorrect password or corrupted file.";
-				errorDiv.style.display = "block";
+				errorDiv.setCssStyles({ display: "block" });
 			}
 		};
 
@@ -664,44 +668,41 @@ export default class PasswordPlugin extends Plugin {
 				
 				const banner = document.createElement("div");
 				banner.className = "datasafe-encryption-banner";
-				banner.style.padding = "12px 16px";
-				banner.style.margin = "0"; 
-				banner.style.backgroundColor = "rgba(var(--callout-warning), 0.15)";
-				banner.style.borderBottom = "1px solid rgb(var(--callout-warning))";
-				banner.style.color = "var(--text-normal)";
-				banner.style.fontWeight = "500";
-				banner.style.fontSize = "14px";
-				banner.style.lineHeight = "1.5";
-				banner.style.zIndex = "10";
-				banner.style.display = "flex";
-				banner.style.justifyContent = "space-between";
-				banner.style.alignItems = "center";
-				banner.style.flexWrap = "wrap";
-				banner.style.gap = "10px";
-				banner.style.userSelect = "text";
+				banner.setCssStyles({
+					padding: "12px 16px",
+					margin: "0",
+					backgroundColor: "rgba(var(--callout-warning), 0.15)",
+					borderBottom: "1px solid rgb(var(--callout-warning))",
+					color: "var(--text-normal)",
+					fontWeight: "500",
+					fontSize: "14px",
+					lineHeight: "1.5",
+					zIndex: "10",
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					flexWrap: "wrap",
+					gap: "10px",
+					userSelect: "text"
+				});
 
 				const textDiv = document.createElement("div");
 				textDiv.innerText = "🔒 This note is encrypted and read-only. If you forgot the password for this specific file, use Emergency Recovery.";
 				banner.appendChild(textDiv);
 
 				const btnContainer = document.createElement("div");
-				btnContainer.style.display = "flex";
-				btnContainer.style.gap = "8px";
+				btnContainer.setCssStyles({ display: "flex", gap: "8px" });
 
 				const recoverBtn = document.createElement("button");
 				recoverBtn.className = "mac-btn-secondary";
-				recoverBtn.style.padding = "6px 12px";
-				recoverBtn.style.fontSize = "13px";
-				recoverBtn.style.whiteSpace = "nowrap";
+				recoverBtn.setCssStyles({ padding: "6px 12px", fontSize: "13px", whiteSpace: "nowrap" });
 				recoverBtn.innerText = "Emergency Recovery";
 				recoverBtn.addEventListener("click", () => this.promptRecoveryMode(f));
 				btnContainer.appendChild(recoverBtn);
 
 				const decryptBtn = document.createElement("button");
 				decryptBtn.className = "mac-btn-primary";
-				decryptBtn.style.padding = "6px 12px";
-				decryptBtn.style.fontSize = "13px";
-				decryptBtn.style.whiteSpace = "nowrap";
+				decryptBtn.setCssStyles({ padding: "6px 12px", fontSize: "13px", whiteSpace: "nowrap" });
 				decryptBtn.innerText = "Decrypt Note";
 				decryptBtn.addEventListener("click", () => this.promptSingleFileDecrypt(f));
 				btnContainer.appendChild(decryptBtn);

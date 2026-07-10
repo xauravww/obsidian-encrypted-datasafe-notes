@@ -162,9 +162,9 @@ export class CustomSettingsView extends ItemView {
 				setIcon(copyBtn, "copy");
 				copyBtn.addEventListener("click", async () => {
 					await navigator.clipboard.writeText(code);
-					setIcon(copyBtn, "check"); copyBtn.style.color = "#22c55e";
+					setIcon(copyBtn, "check"); copyBtn.setCssStyles({ color: "#22c55e" });
 					new Notice("Copied to clipboard!");
-					setTimeout(() => { setIcon(copyBtn, "copy"); copyBtn.style.color = "#a1a1aa"; }, 2000);
+					setTimeout(() => { setIcon(copyBtn, "copy"); copyBtn.setCssStyles({ color: "#a1a1aa" }); }, 2000);
 				});
 				
 				const dismissBtn = setupDiv.createEl("button", { text: "I have safely copied this code", cls: "mac-btn-primary", attr: { style: "width: 100%; padding: 12px;" } });
@@ -269,14 +269,14 @@ export class CustomSettingsView extends ItemView {
 			}
 			
 			disableBtn.addEventListener("click", () => {
-				disableBtn.style.display = "none";
-				disableForm.style.display = "block";
+				disableBtn.setCssStyles({ display: "none" });
+				disableForm.setCssStyles({ display: "block" });
 				confirmInput.focus();
 			});
 			
 			cancelBtn.addEventListener("click", () => {
-				disableBtn.style.display = "block";
-				disableForm.style.display = "none";
+				disableBtn.setCssStyles({ display: "block" });
+				disableForm.setCssStyles({ display: "none" });
 				confirmInput.value = "";
 				disablePass = "";
 			});
@@ -441,10 +441,10 @@ export class CustomSettingsView extends ItemView {
 			setIcon(editIcon, "pencil");
 			
 			folderChip.addEventListener("mouseover", () => {
-				if (!this.plugin.settings.enablePass) folderChip.style.background = "rgba(147, 51, 234, 0.2)";
+				if (!this.plugin.settings.enablePass) folderChip.setCssStyles({ background: "rgba(147, 51, 234, 0.2)" });
 			});
 			folderChip.addEventListener("mouseout", () => {
-				if (!this.plugin.settings.enablePass) folderChip.style.background = "rgba(147, 51, 234, 0.1)";
+				if (!this.plugin.settings.enablePass) folderChip.setCssStyles({ background: "rgba(147, 51, 234, 0.1)" });
 			});
 			
 			folderChip.addEventListener("click", () => {
@@ -457,8 +457,7 @@ export class CustomSettingsView extends ItemView {
 			});
 			
 			if (this.plugin.settings.enablePass) {
-				folderChip.style.opacity = "0.5";
-				folderChip.style.cursor = "not-allowed";
+				folderChip.setCssStyles({ opacity: "0.5", cursor: "not-allowed" });
 				folderSetting.controlEl.title = "You must disable password protection first to change the protected folder.";
 			} else {
 				folderSetting.controlEl.title = "";

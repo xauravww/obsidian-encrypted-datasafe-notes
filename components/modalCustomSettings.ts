@@ -21,7 +21,7 @@ export class ModalCustomSettings extends Modal {
 		// Hide the default Obsidian close button because we use Mac traffic lights
 		const closeBtn = this.modalEl.querySelector(".modal-close-button");
 		if (closeBtn) {
-			(closeBtn as HTMLElement).style.display = "none";
+			(closeBtn as HTMLElement).setCssStyles({ display: "none" });
 		}
 
 		contentEl.empty();
@@ -46,7 +46,8 @@ export class ModalCustomSettings extends Modal {
 		
 		const createNavItem = (id: string, icon: string, text: string) => {
 			const item = nav.createEl("div", { cls: `mac-nav-item ${this.activeTab === id ? 'active' : ''}` });
-			item.innerHTML = `<span class="mac-nav-icon">${icon}</span> ${text}`;
+			item.createEl("span", { cls: "mac-nav-icon", text: icon });
+			item.appendText(" " + text);
 			item.addEventListener("click", () => {
 				this.activeTab = id;
 				this.renderContent(contentContainer);
