@@ -76,7 +76,7 @@ export class SettingsTab extends PluginSettingTab {
 		this.containerEl.createEl("hr");
 
 		this.containerEl.createEl("p", {
-			text: "💡 All advanced custom options (Auto lock, Protected folder, Animations, 2FA, etc.) have been moved to the Custom Settings panel.",
+			text: "💡 All advanced custom options (Auto lock, Protected folder, Animations, Recovery Code, etc.) have been moved to the Custom Settings panel.",
 			attr: { style: "color: var(--text-muted); font-size: 14px; margin-top: 20px; font-style: italic;" }
 		});
 		

@@ -201,13 +201,6 @@ export class ModalEnterPassword extends Modal {
 				await new Promise((resolve) => setTimeout(resolve, 50));
 			}
 
-			// Always decrypt on unlock. (The old fileEncrypt.isAlreadyEncrypted
-			// flag drifted from disk reality and gated decryption incorrectly.)
-			if (this.desc) {
-				this.desc.classList.remove("password_modal__alert");
-				this.desc.innerText = "🛆 Decrypting all files..";
-			}
-
 			if (this.plugin.isBusy) return;
 			this.plugin.isBusy = true;
 			try {
@@ -215,10 +208,19 @@ export class ModalEnterPassword extends Modal {
 				// Rebuild encryptedPaths from disk so Decrypt knows exactly which
 				// files to touch — do NOT trust a stale in-RAM set.
 				await this.plugin.reconcileEncryptedPaths();
-				await new Decrypt(
-					this.app,
-					this.plugin
-				).decryptFilesInDirectory();
+				if (this.plugin.settings.searchDecrypt) {
+					if (this.desc) {
+						this.desc.classList.remove("password_modal__alert");
+						this.desc.innerText = "Decrypting files for search...";
+					}
+					await new Decrypt(
+						this.app,
+						this.plugin
+					).decryptFilesInDirectory();
+				} else if (this.desc) {
+					this.desc.classList.remove("password_modal__alert");
+					this.desc.innerText = "Vault key loaded.";
+				}
 			} catch (e) {
 				console.error("Unlock error:", e);
 			} finally {
@@ -233,6 +235,7 @@ export class ModalEnterPassword extends Modal {
 			this.updatePluginIcon();
 			this.plugin.refreshAutoLock(); // arm auto-lock now that we're unlocked
 			await this.plugin.refreshAllLeaves();
+			this.plugin.unlockPromptOpen = false;
 			this.close();
 			new Notice(`${this.plugin.settings.folder || "Vault"} unlocked 🔓`);
 		}
@@ -240,6 +243,7 @@ export class ModalEnterPassword extends Modal {
 
 	onClose() {
 		if (this.submited || this.isClosable) {
+			this.plugin.unlockPromptOpen = false;
 			//remove blur effect
 			const app_container = document.querySelector(".app-container");
 			app_container?.classList.remove("app-container__lock_password");

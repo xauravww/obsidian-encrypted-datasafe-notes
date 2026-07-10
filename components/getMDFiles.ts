@@ -1,7 +1,7 @@
 import main from "main";
 import { App, TFile, TFolder } from "obsidian";
 
-const SUPPORTED_EXTENSIONS = new Set(["md", "canvas", "excalidraw"]);
+export const SUPPORTED_EXTENSIONS = new Set(["md", "canvas", "excalidraw"]);
 
 export class GetVaultFiles {
 	app: App;
@@ -31,6 +31,12 @@ export class GetVaultFiles {
 		}
 
 		return files;
+	}
+
+	getAllSupportedFiles(): TFile[] {
+		return this.app.vault.getFiles().filter((f) =>
+			SUPPORTED_EXTENSIONS.has(f.extension)
+		);
 	}
 
 	getFilesInFolder(folder: TFolder): TFile[] {

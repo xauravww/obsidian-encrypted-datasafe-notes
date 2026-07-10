@@ -25,11 +25,13 @@ export default class PasswordPlugin extends Plugin {
 	private modalEnterPassword: ModalEnterPassword;
 	private statusBarItemEl: HTMLElement;
 	private blurHandler: () => void;
+	private focusHandler: () => void;
 	private explorerObserver: MutationObserver;
 	recovering: boolean = false;
 	encryptedPaths: Set<string>;
 	autoLockInstance: AutoLock | null = null;
 	isBusy: boolean = false;
+	unlockPromptOpen: boolean = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -140,7 +142,14 @@ export default class PasswordPlugin extends Plugin {
 				this.lockVault();
 			}
 		};
+		this.focusHandler = () => {
+			if (this.recovering) return;
+			if (this.settings.isLocked && this.settings.enablePass) {
+				this.openUnlockPromptForActiveFile();
+			}
+		};
 		window.addEventListener("blur", this.blurHandler);
+		window.addEventListener("focus", this.focusHandler);
 
 		this.addCommand({
 			id: "lock-vault",
@@ -164,6 +173,19 @@ export default class PasswordPlugin extends Plugin {
 			id: "recover-files",
 			name: "Recover corrupted (double-encrypted) files",
 			callback: () => this.recoverFiles(),
+		});
+
+		this.addCommand({
+			id: "encrypt-decrypt-active-file",
+			name: "Encrypt/Decrypt this file",
+			checkCallback: (checking: boolean) => {
+				const file = this.app.workspace.getActiveFile();
+				const canRun =
+					!!file && ["md", "canvas", "excalidraw"].includes(file.extension);
+				if (checking) return canRun;
+				if (file) this.toggleSingleFileEncryption(file);
+				return true;
+			},
 		});
 
 		this.addCommand({
@@ -223,37 +245,7 @@ export default class PasswordPlugin extends Plugin {
 								return;
 							}
 
-							new Notice(
-								`Encrypting ${tf.name}...`
-							);
-							let encrypted: string;
-								try {
-									encrypted = VaultCrypto.encrypt(content, this.getFileKey());
-								} catch (e) {
-									new Notice(`Failed to encrypt ${tf.name} safely. File left unchanged.`, 6000);
-									console.error("Datasafe encrypt error:", e);
-									return;
-								}
-							await this.app.vault.modify(
-								tf,
-								encrypted
-							);
-							this.encryptedPaths.add(tf.path);
-							this.decorateFileExplorer();
-							this.updateStatusBar();
-							new Notice(
-								`Encrypted: ${tf.name}`
-							);
-							
-							// Enforce UI state immediately for all open views of this file
-							this.app.workspace.iterateAllLeaves(async (leaf) => {
-								if (leaf.view.getViewType() === "markdown") {
-									const f = (leaf.view as any).file;
-									if (f && f.path === tf.path) {
-										await this.enforceEncryptionState(f, leaf);
-									}
-								}
-							});
+							await this.encryptSingleFile(tf, content);
 						});
 				});
 
@@ -267,6 +259,60 @@ export default class PasswordPlugin extends Plugin {
 				});
 			})
 		);
+	}
+
+	async toggleSingleFileEncryption(tf: TFile) {
+		if (!this.settings.enablePass) {
+			new Notice("Set a master password before encrypting files.");
+			this.openCustomSettingsView();
+			return;
+		}
+
+		const content = await this.app.vault.read(tf);
+		if (VaultCrypto.isEncrypted(content)) {
+			await this.promptSingleFileDecrypt(tf);
+			return;
+		}
+
+		if (this.settings.isLocked || !this.getFileKey()) {
+			new Notice("Unlock the vault first to load your encryption key.");
+			return;
+		}
+
+		await this.encryptSingleFile(tf, content);
+	}
+
+	async encryptSingleFile(tf: TFile, content?: string) {
+		const plaintext = content ?? await this.app.vault.read(tf);
+		if (VaultCrypto.isEncrypted(plaintext)) {
+			new Notice(`${tf.name} is already encrypted`);
+			return;
+		}
+
+		new Notice(`Encrypting ${tf.name}...`);
+		let encrypted: string;
+		try {
+			encrypted = VaultCrypto.encrypt(plaintext, this.getFileKey());
+		} catch (e) {
+			new Notice(`Failed to encrypt ${tf.name} safely. File left unchanged.`, 6000);
+			console.error("Datasafe encrypt error:", e);
+			return;
+		}
+
+		await this.app.vault.modify(tf, encrypted);
+		this.encryptedPaths.add(tf.path);
+		this.decorateFileExplorer();
+		this.updateStatusBar();
+		new Notice(`Encrypted: ${tf.name}`);
+
+		this.app.workspace.iterateAllLeaves(async (leaf) => {
+			if (leaf.view.getViewType() === "markdown") {
+				const f = (leaf.view as any).file;
+				if (f && f.path === tf.path) {
+					await this.enforceEncryptionState(f, leaf);
+				}
+			}
+		});
 	}
 
 	async promptSingleFileDecrypt(tf: TFile) {
@@ -301,22 +347,9 @@ export default class PasswordPlugin extends Plugin {
 				this.updateStatusBar();
 				new Notice(`Decrypted: ${tf.name}`);
 				console.log("Decryption complete.");
-				
-				// Clean up the banner immediately
-				this.app.workspace.iterateAllLeaves((leaf) => {
-					if (leaf.view.getViewType() === "markdown") {
-						const f = (leaf.view as any).file;
-						if (f && f.path === tf.path) {
-							leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-							leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
-							const state = leaf.getViewState();
-							if (state.state && state.state.mode === "preview") {
-								state.state.mode = "source";
-								leaf.setViewState(state);
-							}
-						}
-					}
-				});
+				await this.clearEncryptionBanner(tf);
+				setTimeout(() => this.clearEncryptionBanner(tf), 100);
+				setTimeout(() => this.clearEncryptionBanner(tf), 350);
 			} else {
 				console.error("Decryption failed for:", tf.name);
 				new Notice(`Failed to decrypt ${tf.name}. The encryption key doesn't match. Try clicking the sidebar padlock to Lock and Unlock the vault again to refresh the keys!`, 8000);
@@ -500,7 +533,7 @@ export default class PasswordPlugin extends Plugin {
 				//  - a raw password (used directly by very old versions)
 				//  - hash(password) (the standard file key for legacy vaults)
 				//  - the MVK unwrapped via hash(password) (encryptedMVK path)
-				//  - the MVK unwrapped via hash(recoveryCode) (2FA recovery key)
+				//  - the MVK unwrapped via hash(recoveryCode)
 				const candidateKeys: Array<string | undefined | null> = [
 					this.getFileKey(),
 					this.settings.fallbackPassword,
@@ -534,24 +567,9 @@ export default class PasswordPlugin extends Plugin {
 					this.updateStatusBar();
 					new Notice(`Recovered: ${tf.name}`);
 					pwModal.close();
-					
-					// Clean up the banner
-					this.app.workspace.iterateAllLeaves((leaf) => {
-						if (leaf.view.getViewType() === "markdown") {
-							const f = (leaf.view as any).file;
-							if (f && f.path === tf.path) {
-								// Invalidate any pending banner-inject loop for this leaf.
-								(leaf as any)._datasafeInjectGen = (((leaf as any)._datasafeInjectGen) || 0) + 1;
-								leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-								leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
-								const state = leaf.getViewState();
-								if (state.state && state.state.mode === "preview") {
-									state.state.mode = "source";
-									leaf.setViewState(state);
-								}
-							}
-						}
-					});
+					await this.clearEncryptionBanner(tf);
+					setTimeout(() => this.clearEncryptionBanner(tf), 100);
+					setTimeout(() => this.clearEncryptionBanner(tf), 350);
 				} else {
 					errorDiv.innerText = "Incorrect password or corrupted file.";
 					errorDiv.style.display = "block";
@@ -623,14 +641,12 @@ export default class PasswordPlugin extends Plugin {
 					stillEncrypted = live ? VaultCrypto.isEncrypted(live) : false;
 				}
 				if (!stillEncrypted && !liveView.editor) {
-					// No live editor — fall back to what we detected at call time.
-					stillEncrypted = true;
+					// Preview mode has no live editor. Trust the current vault scan,
+					// not the stale state that originally scheduled this injection.
+					stillEncrypted = this.encryptedPaths.has(f.path);
 				}
 				if (!stillEncrypted) {
-					leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-					leaf.view.containerEl
-						.querySelectorAll(".datasafe-encryption-banner")
-						.forEach((b: Element) => b.remove());
+					this.clearEncryptionBanner(f);
 					return;
 				}
 
@@ -702,17 +718,33 @@ export default class PasswordPlugin extends Plugin {
 			};
 			setTimeout(tryInject, 50);
 		} else {
+			await this.clearEncryptionBanner(f);
+		}
+	}
+
+	async clearEncryptionBanner(file?: TFile) {
+		const targetPath = file?.path;
+		const cleanupPromises: Promise<void>[] = [];
+
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view.getViewType() !== "markdown") return;
+			const f = (leaf.view as any).file;
+			if (targetPath && f?.path !== targetPath) return;
+
+			(leaf as any)._datasafeInjectGen = (((leaf as any)._datasafeInjectGen) || 0) + 1;
 			leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-			leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
-			
-			// Force the view back to edit mode to ensure Obsidian's UI refreshes
-			// and clears any cached preview of the encrypted ciphertext.
+			leaf.view.containerEl
+				.querySelectorAll(".datasafe-encryption-banner")
+				.forEach((b: Element) => b.remove());
+
 			const state = leaf.getViewState();
 			if (state.state && state.state.mode === "preview") {
 				state.state.mode = "source";
-				await leaf.setViewState(state);
+				cleanupPromises.push(leaf.setViewState(state) as Promise<void>);
 			}
-		}
+		});
+
+		await Promise.all(cleanupPromises);
 	}
 
 	async openCustomSettingsView() {
@@ -794,8 +826,7 @@ export default class PasswordPlugin extends Plugin {
 			this.decorateFileExplorer();
 			await this.refreshAllLeaves();
 			
-			// Instantly pop up the full-screen overlay if they are inside a protected file
-			new FolderLock(this.app, this).closeOnLocked();
+			this.openUnlockPromptForActiveFile();
 			
 			if (!silent) {
 				const label = this.settings.folder || "Vault";
@@ -822,7 +853,7 @@ export default class PasswordPlugin extends Plugin {
 		this.app.workspace.iterateAllLeaves(async (leaf) => {
 			if (leaf.view.getViewType() === "markdown") {
 				const f = (leaf.view as any).file;
-				if (f && f.extension === "md") {
+				if (f && ["md", "canvas", "excalidraw"].includes(f.extension)) {
 					await this.enforceEncryptionState(f, leaf);
 				}
 			}
@@ -843,6 +874,43 @@ export default class PasswordPlugin extends Plugin {
 			() => {}
 		);
 		modal.open();
+	}
+
+	isProtectedOrEncryptedFile(file: TFile | null): boolean {
+		if (!file) return false;
+		if (this.encryptedPaths.has(file.path)) return true;
+		if (!this.settings.folder || this.settings.folder === "/") return true;
+		return file.path.startsWith(`${this.settings.folder}/`);
+	}
+
+	openUnlockPromptForActiveFile(isClosable = true) {
+		if (!this.settings.enablePass || !this.settings.isLocked) return;
+		if (this.unlockPromptOpen) return;
+		if (!document.hasFocus()) return;
+
+		if (this.isBusy) {
+			setTimeout(() => this.openUnlockPromptForActiveFile(isClosable), 250);
+			return;
+		}
+
+		const file = this.app.workspace.getActiveFile();
+		if (!this.isProtectedOrEncryptedFile(file)) return;
+
+		this.unlockPromptOpen = true;
+		new ModalEnterPassword(
+			this.app,
+			this,
+			isClosable,
+			() => {
+				this.unlockPromptOpen = false;
+				this.updateRibbonIcon();
+				this.updateStatusBar();
+				this.decorateFileExplorer();
+			},
+			() => {
+				this.unlockPromptOpen = false;
+			}
+		).open();
 	}
 
 	async showStatus() {
@@ -979,7 +1047,7 @@ export default class PasswordPlugin extends Plugin {
 
 	async reconcileEncryptedPaths() {
 		this.encryptedPaths.clear();
-		const allFiles = this.app.vault.getMarkdownFiles();
+		const allFiles = new GetVaultFiles(this.app, this).getAllSupportedFiles();
 		for (const f of allFiles) {
 			const content = await this.app.vault.read(f);
 			if (VaultCrypto.isEncrypted(content)) {
@@ -1123,6 +1191,7 @@ export default class PasswordPlugin extends Plugin {
 
 	onunload() {
 		window.removeEventListener("blur", this.blurHandler);
+		window.removeEventListener("focus", this.focusHandler);
 		if (this.explorerObserver) this.explorerObserver.disconnect();
 		if (this.autoLockInstance) {
 			this.autoLockInstance.stopTimer();

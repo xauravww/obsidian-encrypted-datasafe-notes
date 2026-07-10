@@ -1,6 +1,7 @@
 import main from "main";
 import { App, Notice } from "obsidian";
 import { VaultCrypto } from "./vaultCrypto";
+import { GetVaultFiles } from "./getMDFiles";
 
 export class Decrypt {
 	app: App;
@@ -24,8 +25,8 @@ export class Decrypt {
 	 * Returns count of files that could NOT be decrypted.
 	 */
 	async decryptFilesInDirectory(): Promise<number> {
-		const files = this.app.vault
-			.getMarkdownFiles()
+		const files = new GetVaultFiles(this.app, this.plugin)
+			.getAllSupportedFiles()
 			.filter((f) => this.plugin.encryptedPaths.has(f.path));
 
 		const keys = [
@@ -41,6 +42,7 @@ export class Decrypt {
 			if (!VaultCrypto.isEncrypted(content)) {
 				// Already plaintext — nothing to do.
 				this.plugin.encryptedPaths.delete(file.path);
+				await this.plugin.clearEncryptionBanner(file);
 				continue;
 			}
 
@@ -50,11 +52,16 @@ export class Decrypt {
 			if (result && VaultCrypto.looksLikePlaintext(result.plaintext)) {
 				await this.app.vault.modify(file, result.plaintext);
 				this.plugin.encryptedPaths.delete(file.path);
+				await this.plugin.clearEncryptionBanner(file);
 			} else {
 				failed++;
 				console.error(`Datasafe: could not decrypt ${file.path}`);
 			}
 		}
+
+		await this.plugin.clearEncryptionBanner();
+		setTimeout(() => this.plugin.clearEncryptionBanner(), 100);
+		setTimeout(() => this.plugin.clearEncryptionBanner(), 350);
 
 		this.plugin.settings.fileEncrypt.isAlreadyEncrypted = false;
 		await this.plugin.saveSettings();
