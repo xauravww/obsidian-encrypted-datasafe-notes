@@ -754,6 +754,7 @@ export default class PasswordPlugin extends Plugin {
 			type: VIEW_TYPE_CUSTOM_SETTINGS,
 			active: true,
 		});
+		// eslint-disable-next-line obsidianmd/no-unsupported-api
 		this.app.workspace.revealLeaf(leaf);
 	}
 
