@@ -12,10 +12,17 @@ export const VIEW_TYPE_CUSTOM_SETTINGS = "datasafe-custom-settings-view";
 export class CustomSettingsView extends ItemView {
 	plugin: main;
 	activeTab: string = "security";
+	contentContainer: HTMLElement;
 
 	constructor(leaf: WorkspaceLeaf, plugin: main) {
 		super(leaf);
 		this.plugin = plugin;
+	}
+
+	refresh() {
+		if (this.contentContainer) {
+			this.renderContent(this.contentContainer);
+		}
 	}
 
 	getViewType() {
@@ -55,7 +62,7 @@ export class CustomSettingsView extends ItemView {
 			
 			item.addEventListener("click", () => {
 				this.activeTab = id;
-				this.renderContent(contentContainer);
+				this.renderContent(this.contentContainer);
 				
 				// Update active state
 				nav.querySelectorAll(".mac-nav-item").forEach(el => el.classList.remove("active"));
@@ -67,8 +74,8 @@ export class CustomSettingsView extends ItemView {
 		createNavItem("behavior", "sliders-horizontal", "Behavior");
 
 		// --- MAIN CONTENT ---
-		const contentContainer = layout.createDiv({ cls: "mac-content-area" });
-		this.renderContent(contentContainer);
+		this.contentContainer = layout.createDiv({ cls: "mac-content-area" });
+		this.renderContent(this.contentContainer);
 	}
 
 	renderContent(container: HTMLElement) {
@@ -362,15 +369,19 @@ export class CustomSettingsView extends ItemView {
 
 		const card = container.createDiv({ cls: "mac-card" });
 
-		new Setting(card)
+		const autoLockSetting = new Setting(card)
 			.setName("Auto Lock (seconds)")
-			.setDesc("Automatically lock the vault after inactivity (0 to disable).")
-			.addText((text) =>
-				text.setValue(this.plugin.settings.autoLock)
-					.setPlaceholder("0")
-					.onChange(async (val) => {
-					this.plugin.settings.autoLock = val;
+			.setDesc(`Automatically lock the vault after inactivity. Currently: ${Number(this.plugin.settings.autoLock) === 0 ? "Disabled" : this.plugin.settings.autoLock + " seconds"}`);
+			
+		autoLockSetting.addSlider((slider) => slider
+				.setLimits(0, 600, 10)
+				.setValue(Number(this.plugin.settings.autoLock) || 0)
+				.setDynamicTooltip()
+				.onChange(async (val) => {
+					this.plugin.settings.autoLock = val.toString();
+					autoLockSetting.setDesc(`Automatically lock the vault after inactivity. Currently: ${val === 0 ? "Disabled" : val + " seconds"}`);
 					await this.plugin.saveSettings();
+					this.plugin.refreshAutoLock();
 				})
 			);
 
@@ -395,30 +406,66 @@ export class CustomSettingsView extends ItemView {
 					await this.plugin.saveSettings();
 				})
 			);
-			
+
 		new Setting(card)
-			.setName("Protected Folder")
-			.setDesc("Select a folder to only protect specific files. Leave empty to protect the entire vault.")
-			.addText((text) =>
-				text.setValue(this.plugin.settings.folder)
-					.setPlaceholder("entire vault")
-					.onChange(async (val) => {
-						const path = val[val.length - 1] === "/" ? val.slice(0, -1) : val;
-						this.plugin.settings.folder = path;
-						await this.plugin.saveSettings();
-					})
-			)
-			.addButton((btn) => 
-				btn.setButtonText("Browse")
-				.onClick(() => {
-					new FolderSuggestModal(this.app, async (folder) => {
-						this.plugin.settings.folder = folder ? folder.path : "";
-						await this.plugin.saveSettings();
-						this.renderBehaviorTab(container);
-					}).open();
+			.setName("Repair Vault")
+			.setDesc("Scan and recover corrupted or multi-encrypted files. Non-destructive — files that can't be recovered are left untouched. Vault must be unlocked.")
+			.addButton((btn) => btn
+				.setButtonText("Repair")
+				.setClass("mac-btn-secondary")
+				.onClick(async () => {
+					if (this.plugin.settings.isLocked || !this.plugin.getFileKey()) {
+						new Notice("Unlock the vault first, then run Repair.");
+						return;
+					}
+					await this.plugin.promptRepairVault();
 				})
-			)
-			.setDisabled(this.plugin.settings.enablePass);
+			);
+			
+		const folderSetting = new Setting(card)
+			.setName("Protected Folder")
+			.setDesc("Select a folder to only protect specific files. Leave empty to protect the entire vault.");
+
+		const updateFolderUI = () => {
+			folderSetting.controlEl.empty();
+			
+			const folderChip = folderSetting.controlEl.createDiv({
+				attr: {
+					style: "display: flex; align-items: center; gap: 8px; background: rgba(147, 51, 234, 0.1); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(147, 51, 234, 0.3); cursor: pointer; transition: background 0.2s;"
+				}
+			});
+			
+			folderChip.createSpan({ text: this.plugin.settings.folder || "Entire Vault", attr: { style: "font-family: monospace; font-size: 13px; color: #e5e5e5;" } });
+			
+			const editIcon = folderChip.createSpan({ attr: { style: "display: flex; align-items: center; color: #c084fc; opacity: 0.7; margin-left: 4px;" } });
+			setIcon(editIcon, "pencil");
+			
+			folderChip.addEventListener("mouseover", () => {
+				if (!this.plugin.settings.enablePass) folderChip.style.background = "rgba(147, 51, 234, 0.2)";
+			});
+			folderChip.addEventListener("mouseout", () => {
+				if (!this.plugin.settings.enablePass) folderChip.style.background = "rgba(147, 51, 234, 0.1)";
+			});
+			
+			folderChip.addEventListener("click", () => {
+				if (this.plugin.settings.enablePass) return;
+				new FolderSuggestModal(this.app, async (folder) => {
+					this.plugin.settings.folder = folder ? folder.path : "";
+					await this.plugin.saveSettings();
+					updateFolderUI();
+				}).open();
+			});
+			
+			if (this.plugin.settings.enablePass) {
+				folderChip.style.opacity = "0.5";
+				folderChip.style.cursor = "not-allowed";
+				folderSetting.controlEl.title = "You must disable password protection first to change the protected folder.";
+			} else {
+				folderSetting.controlEl.title = "";
+			}
+		};
+		
+		updateFolderUI();
 			
 		new Setting(card)
 			.setName("Show Custom Settings Icon")

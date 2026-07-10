@@ -7,38 +7,40 @@ export class AutoLock {
 	userActive: boolean;
 	idleTimeout: NodeJS.Timeout;
 	isAlreadyOpen: boolean;
-	seconds: string;
 
-	constructor(app: App, plugin: main, seconds: string) {
+	constructor(app: App, plugin: main) {
 		this.app = app;
 		this.plugin = plugin;
 		this.userActive = true;
 		this.isAlreadyOpen = false;
-		this.seconds = seconds;
 	}
 
 	async startTimer() {
-		document.addEventListener(
-			"mousedown",
-			this.handleUserActivity.bind(this)
-		);
+		// Remove first so repeated startTimer() calls never stack duplicate
+		// listeners (handleUserActivity is a stable arrow, so removal works).
+		document.removeEventListener("mousedown", this.handleUserActivity);
+		document.removeEventListener("keydown", this.handleUserActivity);
 
-		document.addEventListener(
-			"keydown",
-			this.handleUserActivity.bind(this)
-		);
+		document.addEventListener("mousedown", this.handleUserActivity);
+		document.addEventListener("keydown", this.handleUserActivity);
 
 		this.handleUserActivity();
 	}
 
-	handleUserActivity() {
+	stopTimer() {
+		document.removeEventListener("mousedown", this.handleUserActivity);
+		document.removeEventListener("keydown", this.handleUserActivity);
+		clearTimeout(this.idleTimeout);
+	}
+
+	handleUserActivity = () => {
 		clearTimeout(this.idleTimeout);
 		const settings = this.plugin.settings;
 
-		if (!settings.isLocked && this.seconds !== "0") {
+		if (!settings.isLocked && settings.autoLock !== "0") {
 			this.idleTimeout = setTimeout(() => {
 				this.plugin.lockVault(true);
-			}, Number(this.seconds) * 1000);
+			}, Number(settings.autoLock) * 1000);
 		}
-	}
+	};
 }

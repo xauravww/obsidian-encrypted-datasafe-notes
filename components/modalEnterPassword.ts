@@ -2,7 +2,6 @@ import main from "main";
 import { App, Modal, Notice, Setting, moment, setIcon } from "obsidian";
 import { hash } from "./hash";
 import { Decrypt } from "./decrypt";
-import { Encrypt } from "./encrypt";
 import { ModalRecovery } from "./modalRecovery";
 import { ModalFactoryReset } from "./modalFactoryReset";
 import * as CryptoJS from "crypto-js";
@@ -62,14 +61,25 @@ export class ModalEnterPassword extends Modal {
 		modalEl.style.borderRadius = "16px";
 		modalEl.style.padding = "0";
 
-		if (!this.isClosable) {
-			const closeBtn = modalEl.querySelector(".modal-close-button");
-			if (closeBtn) closeBtn.remove();
-		}
+		const closeBtn = modalEl.querySelector(".modal-close-button");
+		if (closeBtn) closeBtn.remove();
 
 		contentEl.empty();
 		contentEl.addClass("mac-settings-view");
 		contentEl.style.padding = "32px";
+		contentEl.style.position = "relative"; // Ensure absolute positioning works for close btn
+
+		if (this.isClosable) {
+			const customCloseBtn = contentEl.createEl("button", {
+				attr: { 
+					style: "position: absolute; top: 16px; right: 16px; background: transparent; border: none; box-shadow: none; color: #a1a1aa; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.2s;"
+				}
+			});
+			setIcon(customCloseBtn, "x");
+			customCloseBtn.addEventListener("mouseover", () => customCloseBtn.style.opacity = "1");
+			customCloseBtn.addEventListener("mouseout", () => customCloseBtn.style.opacity = "0.7");
+			customCloseBtn.addEventListener("click", () => this.close());
+		}
 
 		const div_main = contentEl.createDiv({
 			attr: { style: "max-width: 400px; margin: auto;" }
@@ -135,30 +145,13 @@ export class ModalEnterPassword extends Modal {
 			new ModalRecovery(this.app, this.plugin).open();
 		});
 
-		const resetBtn = div_main.createEl("button", { text: "⚠️ Factory Reset & Erase Data", cls: "mac-btn-danger", attr: { style: "width: 100%; padding: 12px;" } });
-		resetBtn.addEventListener("click", async () => {
-			const confirm = window.confirm("Are you sure you want to reset? This will erase your keys and you will lose access to any encrypted files forever.");
-			if (confirm) {
-				this.plugin.settings.password = "";
-				this.plugin.settings.passwordVerifier = "";
-				this.plugin.settings.encryptedMVK = "";
-				this.plugin.settings.recoveryEncryptedMVK = "";
-				this.plugin.settings.enablePass = false;
-				await this.plugin.saveSettings();
-				new Notice("Factory Reset Complete.");
-				this.close();
-			}
+		const resetBtn = div_main.createEl("button", { text: "⚠️ Factory Reset & Erase Data", cls: "mac-btn-danger", attr: { style: "width: 100%; padding: 12px; margin-bottom: 8px;" } });
+		resetBtn.addEventListener("click", () => {
+			new ModalFactoryReset(this.app, this.plugin, this).open();
 		});
 		
-		if (
-			this.plugin.settings.fileEncrypt.encrypt &&
-			!this.plugin.settings.fileEncrypt.isAlreadyEncrypted &&
-			!this.disablingPass
-		) {
-			password_input.disabled = true;
-			await new Encrypt(this.app, this.plugin).encryptFilesInDirectory();
-			password_input.disabled = false;
-		}
+		// NOTE: The unlock modal must NEVER encrypt on open. Encryption is owned
+		// solely by lockVault() / auto-lock. Opening this dialog only unlocks.
 
 		password_input.focus();
 	}
@@ -208,34 +201,40 @@ export class ModalEnterPassword extends Modal {
 				await new Promise((resolve) => setTimeout(resolve, 50));
 			}
 
-			const shouldDecrypt =
-				(this.plugin.settings.fileEncrypt &&
-					this.plugin.settings.fileEncrypt
-						.isAlreadyEncrypted) ||
-				this.plugin.settings.searchDecrypt;
+			// Always decrypt on unlock. (The old fileEncrypt.isAlreadyEncrypted
+			// flag drifted from disk reality and gated decryption incorrectly.)
+			if (this.desc) {
+				this.desc.classList.remove("password_modal__alert");
+				this.desc.innerText = "🛆 Decrypting all files..";
+			}
 
-			if (shouldDecrypt) {
-				if (this.desc) {
-					this.desc.classList.remove("password_modal__alert");
-					this.desc.innerText = "🛆 Decrypting all files..";
-				}
-
+			if (this.plugin.isBusy) return;
+			this.plugin.isBusy = true;
+			try {
 				input.disabled = true;
-
+				// Rebuild encryptedPaths from disk so Decrypt knows exactly which
+				// files to touch — do NOT trust a stale in-RAM set.
+				await this.plugin.reconcileEncryptedPaths();
 				await new Decrypt(
 					this.app,
 					this.plugin
 				).decryptFilesInDirectory();
-				this.plugin.encryptedPaths.clear();
+			} catch (e) {
+				console.error("Unlock error:", e);
+			} finally {
+				this.plugin.isBusy = false;
 			}
 
 			//we use submited in case we clicked out our password modal
 			this.plugin.settings.isLocked = false;
+			await this.plugin.saveSettings();
 			this.submited = true;
 			this.plugin.toggleFlag = false;
 			this.updatePluginIcon();
+			this.plugin.refreshAutoLock(); // arm auto-lock now that we're unlocked
 			await this.plugin.refreshAllLeaves();
 			this.close();
+			new Notice(`${this.plugin.settings.folder || "Vault"} unlocked 🔓`);
 		}
 	}
 

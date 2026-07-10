@@ -133,15 +133,19 @@ export class ModalCustomSettings extends Modal {
 
 		const card = container.createDiv({ cls: "mac-card" });
 
-		new Setting(card)
+		const autoLockSetting = new Setting(card)
 			.setName("Auto Lock (seconds)")
-			.setDesc("Automatically lock the vault after inactivity (0 to disable).")
-			.addText((text) =>
-				text.setValue(this.plugin.settings.autoLock)
-					.setPlaceholder("0")
-					.onChange(async (val) => {
-					this.plugin.settings.autoLock = val;
+			.setDesc(`Automatically lock the vault after inactivity. Currently: ${Number(this.plugin.settings.autoLock) === 0 ? "Disabled" : this.plugin.settings.autoLock + " seconds"}`);
+			
+		autoLockSetting.addSlider((slider) => slider
+				.setLimits(0, 600, 10)
+				.setValue(Number(this.plugin.settings.autoLock) || 0)
+				.setDynamicTooltip()
+				.onChange(async (val) => {
+					this.plugin.settings.autoLock = val.toString();
+					autoLockSetting.setDesc(`Automatically lock the vault after inactivity. Currently: ${val === 0 ? "Disabled" : val + " seconds"}`);
 					await this.plugin.saveSettings();
+					this.plugin.refreshAutoLock();
 				})
 			);
 

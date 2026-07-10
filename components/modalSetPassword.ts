@@ -106,7 +106,10 @@ export class ModalSetPassword extends Modal {
 				const mvk = CryptoJS.lib.WordArray.random(32).toString();
 				const code = CryptoJS.lib.WordArray.random(16).toString().toUpperCase().match(/.{1,4}/g)?.join('-') || "ERR-CODE";
 				
-				this.plugin.settings.password = hashed;
+				// Files are encrypted with the MVK, NOT the raw password hash — this
+				// must match the unlock path (modalEnterPassword) and create-vault
+				// path (viewCustomSettings), or files become undecryptable.
+				this.plugin.settings.password = mvk;
 				this.plugin.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", hashed).toString();
 				this.plugin.settings.encryptedMVK = CryptoJS.AES.encrypt(mvk, hashed).toString();
 				this.plugin.settings.recoveryEncryptedMVK = CryptoJS.AES.encrypt(mvk, hash(code)).toString();

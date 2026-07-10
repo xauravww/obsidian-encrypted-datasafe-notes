@@ -1,4 +1,4 @@
-import { Notice, Plugin, addIcon, TFile, Modal, setIcon } from "obsidian";
+import { Notice, Plugin, addIcon, TFile, Modal, setIcon, WorkspaceLeaf } from "obsidian";
 import { ModalEnterPassword } from "./components/modalEnterPassword";
 import {
 	DEFAULT_SETTINGS,
@@ -13,6 +13,7 @@ import { Decrypt } from "./components/decrypt";
 import { GetVaultFiles } from "./components/getMDFiles";
 import { hash } from "./components/hash";
 import { CustomSettingsView, VIEW_TYPE_CUSTOM_SETTINGS } from "./components/viewCustomSettings";
+import { VaultCrypto } from "./components/vaultCrypto";
 import * as CryptoJS from "crypto-js";
 
 export default class PasswordPlugin extends Plugin {
@@ -27,6 +28,8 @@ export default class PasswordPlugin extends Plugin {
 	private explorerObserver: MutationObserver;
 	recovering: boolean = false;
 	encryptedPaths: Set<string>;
+	autoLockInstance: AutoLock | null = null;
+	isBusy: boolean = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -54,17 +57,18 @@ export default class PasswordPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(async () => {
 			await this.reconcileEncryptedPaths();
 
+			// Single source of truth: the vault is locked whenever there is no
+			// file key in RAM. loadSettings() already clears the key on startup,
+			// so force isLocked to match rather than trusting the persisted flag.
+			if (!this.getFileKey()) {
+				this.settings.isLocked = true;
+			}
+
 			// If the vault is locked on startup, we no longer force a non-closable modal.
 			// The in-editor banner will elegantly handle any encrypted files that are opened,
 			// allowing the user to freely read/edit unencrypted files in the meantime!
 
-			if (this.settings.enablePass && this.settings.autoLock !== "0") {
-				new AutoLock(
-					this.app,
-					this,
-					this.settings.autoLock
-				).startTimer();
-			}
+			this.refreshAutoLock();
 
 			this.setupExplorerObserver();
 		});
@@ -163,6 +167,12 @@ export default class PasswordPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "repair-vault",
+			name: "Repair Vault (recover corrupted / multi-encrypted files)",
+			callback: () => this.promptRepairVault(),
+		});
+
+		this.addCommand({
 			id: "panic-button",
 			name: "Panic Button (Lock & Hide)",
 			callback: async () => {
@@ -200,7 +210,7 @@ export default class PasswordPlugin extends Plugin {
 							const content =
 								await this.app.vault.read(tf);
 							if (
-								content.startsWith("U2FsdGVkX1")
+								VaultCrypto.isEncrypted(content)
 							) {
 								new Notice(
 									`${tf.name} is already encrypted`
@@ -216,11 +226,14 @@ export default class PasswordPlugin extends Plugin {
 							new Notice(
 								`Encrypting ${tf.name}...`
 							);
-							const encrypted =
-								CryptoJS.AES.encrypt(
-									content,
-									this.settings.password
-								).toString();
+							let encrypted: string;
+								try {
+									encrypted = VaultCrypto.encrypt(content, this.getFileKey());
+								} catch (e) {
+									new Notice(`Failed to encrypt ${tf.name} safely. File left unchanged.`, 6000);
+									console.error("Datasafe encrypt error:", e);
+									return;
+								}
 							await this.app.vault.modify(
 								tf,
 								encrypted
@@ -259,33 +272,28 @@ export default class PasswordPlugin extends Plugin {
 	async promptSingleFileDecrypt(tf: TFile) {
 		const doDecrypt = async () => {
 			const content = await this.app.vault.read(tf);
-			if (!content.startsWith("U2FsdGVkX1")) {
+			if (!VaultCrypto.isEncrypted(content)) {
 				new Notice(`${tf.name} is not encrypted`);
 				return;
 			}
 			new Notice(`Decrypting ${tf.name}...`);
-			let decrypted = "";
 			console.log("=== DATASAFE: SINGLE FILE DECRYPT START ===");
 			console.log("File:", tf.name);
-			console.log("Current RAM password length:", this.settings.password?.length || 0);
-			console.log("Fallback password length:", this.settings.fallbackPassword?.length || 0);
 
-			try {
-				decrypted = CryptoJS.AES.decrypt(content, this.settings.password).toString(CryptoJS.enc.Utf8);
-				if (decrypted) console.log("Success with primary password");
-			} catch (e) {
-				console.log("Failed with primary password error:", e);
-			}
-			
-			if (!decrypted && this.settings.fallbackPassword) {
-				try {
-					decrypted = CryptoJS.AES.decrypt(content, this.settings.fallbackPassword).toString(CryptoJS.enc.Utf8);
-					if (decrypted) console.log("Success with fallback password");
-				} catch (e) {
-					console.log("Failed with fallback password error:", e);
-				}
-			}
-			
+			// Try every candidate key AND un-nest multi-layer encryption. Covers
+			// legacy files encrypted under the raw password hash, the MVK, or a
+			// stale/double-encrypted state from older buggy versions.
+			const candidateKeys = [
+				this.getFileKey(),
+				this.settings.fallbackPassword,
+				this.settings.password,
+			];
+			const result = VaultCrypto.deepDecrypt(content, candidateKeys);
+			const decrypted =
+				result && VaultCrypto.looksLikePlaintext(result.plaintext)
+					? result.plaintext
+					: "";
+
 			if (decrypted) {
 				await this.app.vault.modify(tf, decrypted);
 				this.encryptedPaths.delete(tf.path);
@@ -300,7 +308,7 @@ export default class PasswordPlugin extends Plugin {
 						const f = (leaf.view as any).file;
 						if (f && f.path === tf.path) {
 							leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-							leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach(b => b.remove());
+							leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
 							const state = leaf.getViewState();
 							if (state.state && state.state.mode === "preview") {
 								state.state.mode = "source";
@@ -445,7 +453,7 @@ export default class PasswordPlugin extends Plugin {
 		});
 		
 		div_main.createEl("p", {
-			text: "Bypass vault checks and force-decrypt this file directly using an old or lost password.",
+			text: "Bypass vault checks and force-decrypt this file. Enter an old/lost password OR your recovery code — both are tried.",
 			attr: { style: "text-align: center; color: #a1a1aa; font-size: 14px; margin-bottom: 24px;" }
 		});
 
@@ -454,7 +462,7 @@ export default class PasswordPlugin extends Plugin {
 		
 		const input = wrapper.createEl("input", {
 			type: "password",
-			placeholder: "Old Password",
+			placeholder: "Old Password or Recovery Code",
 			attr: { style: "display: block; width: 100%; padding: 12px 16px; padding-right: 44px; box-sizing: border-box; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; font-family: 'Manrope', sans-serif;" }
 		});
 		
@@ -483,10 +491,42 @@ export default class PasswordPlugin extends Plugin {
 		const submitBtn = btnRow.createEl("button", { text: "Force Decrypt", cls: "mac-btn-danger", attr: { style: "flex: 1; padding: 12px;" } });
 
 		const checkPass = async () => {
-			const inputHash = hash(input.value);
+			const raw = input.value.trim();
+			const inputHash = hash(raw);
 			try {
 				const content = await this.app.vault.read(tf);
-				const decrypted = CryptoJS.AES.decrypt(content, inputHash).toString(CryptoJS.enc.Utf8);
+
+				// Build every candidate key the typed value could represent:
+				//  - a raw password (used directly by very old versions)
+				//  - hash(password) (the standard file key for legacy vaults)
+				//  - the MVK unwrapped via hash(password) (encryptedMVK path)
+				//  - the MVK unwrapped via hash(recoveryCode) (2FA recovery key)
+				const candidateKeys: Array<string | undefined | null> = [
+					this.getFileKey(),
+					this.settings.fallbackPassword,
+					inputHash,
+					raw,
+				];
+				if (this.settings.encryptedMVK) {
+					const mvkFromPass = VaultCrypto.tryDecrypt(
+						VaultCrypto.wrap(this.settings.encryptedMVK),
+						inputHash
+					);
+					if (mvkFromPass) candidateKeys.push(mvkFromPass);
+				}
+				if (this.settings.recoveryEncryptedMVK) {
+					const mvkFromCode = VaultCrypto.tryDecrypt(
+						VaultCrypto.wrap(this.settings.recoveryEncryptedMVK),
+						inputHash
+					);
+					if (mvkFromCode) candidateKeys.push(mvkFromCode);
+				}
+
+				const result = VaultCrypto.deepDecrypt(content, candidateKeys);
+				const decrypted =
+					result && VaultCrypto.looksLikePlaintext(result.plaintext)
+						? result.plaintext
+						: "";
 				if (decrypted) {
 					await this.app.vault.modify(tf, decrypted);
 					this.encryptedPaths.delete(tf.path);
@@ -500,8 +540,10 @@ export default class PasswordPlugin extends Plugin {
 						if (leaf.view.getViewType() === "markdown") {
 							const f = (leaf.view as any).file;
 							if (f && f.path === tf.path) {
+								// Invalidate any pending banner-inject loop for this leaf.
+								(leaf as any)._datasafeInjectGen = (((leaf as any)._datasafeInjectGen) || 0) + 1;
 								leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-								leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach(b => b.remove());
+								leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
 								const state = leaf.getViewState();
 								if (state.state && state.state.mode === "preview") {
 									state.state.mode = "source";
@@ -529,8 +571,31 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	async enforceEncryptionState(f: TFile, leaf: WorkspaceLeaf) {
-		const content = await this.app.vault.read(f);
-		if (content.startsWith("U2FsdGVkX1")) {
+		let isEncrypted = false;
+		const view = leaf.view as any;
+
+		// Bump a per-leaf generation token. Any tryInject loop from a PRIOR call is now stale
+		// and must abort — otherwise an old encrypted-state timer re-injects the banner AFTER
+		// unlock/decrypt has already cleaned it up (banner shows on an unlocked file).
+		const myGen = ((leaf as any)._datasafeInjectGen || 0) + 1;
+		(leaf as any)._datasafeInjectGen = myGen;
+		
+		// If the file is actively open in an editor, pull from the live memory rather than the disk!
+		// This ensures we catch files that were just encrypted via editor injection but haven't finished saving yet.
+		if (view.editor) {
+			const liveContent = view.editor.getValue();
+			if (liveContent) {
+				isEncrypted = VaultCrypto.isEncrypted(liveContent);
+			}
+		}
+		
+		// Fallback to reading from disk if there's no live editor or live content is empty
+		if (!isEncrypted) {
+			const content = await this.app.vault.read(f);
+			isEncrypted = VaultCrypto.isEncrypted(content);
+		}
+
+		if (isEncrypted) {
 			// Force it into preview mode
 			const state = leaf.getViewState();
 			if (state.state && (state.state.mode !== "preview" || state.state.source !== false)) {
@@ -542,14 +607,38 @@ export default class PasswordPlugin extends Plugin {
 			// Ensure banner and classes are added after React/Mithril updates the DOM
 			let attempts = 0;
 			const tryInject = () => {
+				// Abort if a newer enforceEncryptionState call superseded us (e.g. file got unlocked).
+				if ((leaf as any)._datasafeInjectGen !== myGen) return;
 				if (attempts > 5) return;
 				attempts++;
-				
+
+				// Re-verify CURRENT state every tick. If the file was decrypted by
+				// any path (single-file decrypt, unlock, recovery) while this loop
+				// was pending, stop re-injecting and clean up — this is what stops
+				// a zombie banner from reappearing on a now-plaintext note.
+				const liveView = leaf.view as any;
+				let stillEncrypted = false;
+				if (liveView.editor) {
+					const live = liveView.editor.getValue();
+					stillEncrypted = live ? VaultCrypto.isEncrypted(live) : false;
+				}
+				if (!stillEncrypted && !liveView.editor) {
+					// No live editor — fall back to what we detected at call time.
+					stillEncrypted = true;
+				}
+				if (!stillEncrypted) {
+					leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
+					leaf.view.containerEl
+						.querySelectorAll(".datasafe-encryption-banner")
+						.forEach((b: Element) => b.remove());
+					return;
+				}
+
 				leaf.view.containerEl.classList.add("agy-is-encrypted-view");
-				
+
 				// Remove any existing banners first to prevent duplicates
-				leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach(b => b.remove());
-				
+				leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
+
 				const header = leaf.view.containerEl.querySelector(".view-header");
 				// If header is missing, Obsidian hasn't rendered yet
 				if (!header) {
@@ -614,7 +703,7 @@ export default class PasswordPlugin extends Plugin {
 			setTimeout(tryInject, 50);
 		} else {
 			leaf.view.containerEl.classList.remove("agy-is-encrypted-view");
-			leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach(b => b.remove());
+			leaf.view.containerEl.querySelectorAll(".datasafe-encryption-banner").forEach((b: Element) => b.remove());
 			
 			// Force the view back to edit mode to ensure Obsidian's UI refreshes
 			// and clears any cached preview of the encrypted ciphertext.
@@ -671,28 +760,59 @@ export default class PasswordPlugin extends Plugin {
 	}
 
 	async lockVault(silent = false) {
-		if (!this.settings.password) {
-			if (!silent) new Notice("Vault is already locked, or no encryption key is loaded!");
-			return;
-		}
+		if (this.isBusy || this.settings.isLocked) return;
+		
+		this.isBusy = true;
+		try {
+			if (!this.settings.password) {
+				if (!silent) new Notice("Vault is already locked, or no encryption key is loaded!");
+				return;
+			}
 
-		if (!silent) new Notice("Encrypting files...");
-		await new Encrypt(this.app, this).encryptFilesInDirectory();
-		await this.reconcileEncryptedPaths();
-		this.settings.isLocked = true;
-		
-		// CLEAR THE PASSWORD FROM RAM SO IT IS TRULY LOCKED!
-		this.settings.password = "";
-		this.settings.fallbackPassword = "";
-		
-		await this.saveSettings();
-		this.updateRibbonIcon();
-		this.updateStatusBar();
-		this.decorateFileExplorer();
-		await this.refreshAllLeaves();
-		if (!silent) {
-			const label = this.settings.folder || "Vault";
-			new Notice(`${label} is locked 🔒`);
+			if (!silent) new Notice("Encrypting files...");
+			const failed = await new Encrypt(this.app, this).encryptFilesInDirectory();
+			await this.reconcileEncryptedPaths();
+			this.settings.isLocked = true;
+
+			if (failed > 0) {
+				new Notice(`⚠ ${failed} file(s) could not be encrypted safely and were left as plaintext. Check the console.`, 8000);
+			}
+
+			// Stop the idle timer — no point running while locked.
+			if (this.autoLockInstance) {
+				this.autoLockInstance.stopTimer();
+				this.autoLockInstance = null;
+			}
+
+			// CLEAR THE PASSWORD FROM RAM SO IT IS TRULY LOCKED!
+			this.settings.password = "";
+			this.settings.fallbackPassword = "";
+			
+			await this.saveSettings();
+			this.updateRibbonIcon();
+			this.updateStatusBar();
+			this.decorateFileExplorer();
+			await this.refreshAllLeaves();
+			
+			// Instantly pop up the full-screen overlay if they are inside a protected file
+			new FolderLock(this.app, this).closeOnLocked();
+			
+			if (!silent) {
+				const label = this.settings.folder || "Vault";
+				new Notice(`${label} is locked 🔒`);
+			}
+			
+			// Force Obsidian's UI (CodeMirror, React, etc.) to wake up and repaint immediately.
+			// Background timers often cause UI frameworks to defer DOM reconciliation until the next user interaction.
+			window.dispatchEvent(new Event("resize"));
+			this.app.workspace.trigger("layout-change");
+			document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			document.body.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+		} catch (e) {
+			new Notice("Encryption failed! Vault is not locked.");
+			console.error("Lock error:", e);
+		} finally {
+			this.isBusy = false;
 		}
 	}
 
@@ -736,11 +856,11 @@ export default class PasswordPlugin extends Plugin {
 		const problems: string[] = [];
 		for (const f of files) {
 			const content = await this.app.vault.read(f);
-			if (content.startsWith("U2FsdGVkX1")) {
+			if (VaultCrypto.isEncrypted(content)) {
 				encrypted++;
 				const key = this.settings.password;
 				const decrypted = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
-				if (decrypted && decrypted.startsWith("U2FsdGVkX1")) {
+				if (decrypted && VaultCrypto.isEncrypted(decrypted)) {
 					problems.push(f.path);
 				}
 			} else {
@@ -754,36 +874,60 @@ export default class PasswordPlugin extends Plugin {
 		new Notice(msg, 8000);
 	}
 
+	// Legacy command kept for back-compat — now routes to the unified,
+	// multi-layer, multi-key, non-destructive repair logic.
 	async recoverFiles() {
-		const files = new GetVaultFiles(this.app, this).getFiles();
-		if (!files || files.length === 0) {
-			new Notice("No files to check.");
+		this.recovering = true;
+		const r = await this.repairVault();
+		this.recovering = false;
+		let msg = `Repair: ${r.ok} OK, ${r.fixed} recovered`;
+		if (r.failed > 0) msg += `, ${r.failed} FAILED`;
+		new Notice(msg, 8000);
+	}
+
+	/**
+	 * Run Repair Vault. If any files can't be recovered with the in-RAM keys,
+	 * prompt for the recovery code and retry those with the code-derived key.
+	 */
+	async promptRepairVault() {
+		new Notice("Repairing vault...");
+		let r = await this.repairVault();
+
+		if (r.failed > 0 && this.settings.recoveryEncryptedMVK) {
+			const modal = new Modal(this.app);
+			modal.titleEl.setText("Repair Vault — Recovery Code");
+			modal.contentEl.createEl("p", {
+				text: `${r.failed} file(s) could not be recovered with your current key. Enter your recovery code to try again.`,
+			});
+			const input = modal.contentEl.createEl("input", {
+				type: "text",
+				placeholder: "XXXX-XXXX-XXXX-XXXX",
+				attr: { style: "width: 100%; padding: 10px; margin: 8px 0;" },
+			});
+			const row = modal.contentEl.createDiv({ attr: { style: "display:flex; gap:8px; justify-content:flex-end;" } });
+			const cancel = row.createEl("button", { text: "Cancel" });
+			cancel.addEventListener("click", () => modal.close());
+			const go = row.createEl("button", { text: "Repair", cls: "mod-cta" });
+			go.addEventListener("click", async () => {
+				modal.close();
+				new Notice("Repairing with recovery code...");
+				r = await this.repairVault(input.value.trim());
+				this.reportRepair(r);
+			});
+			modal.open();
+			input.focus();
 			return;
 		}
-		this.recovering = true;
-		const key = this.settings.password;
-		let encrypted = 0;
-		let fixed = 0;
-		let failed = 0;
-		for (const f of files) {
-			const content = await this.app.vault.read(f);
-			if (!content.startsWith("U2FsdGVkX1")) continue;
-			encrypted++;
-			const first = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
-			if (!first || !first.startsWith("U2FsdGVkX1")) continue;
-			const second = CryptoJS.AES.decrypt(first, key).toString(CryptoJS.enc.Utf8);
-			if (second) {
-				await this.app.vault.modify(f, second);
-				fixed++;
-			} else {
-				failed++;
-			}
+		this.reportRepair(r);
+	}
+
+	private reportRepair(r: { ok: number; fixed: number; failed: number; failedPaths: string[] }) {
+		let msg = `Repair complete: ${r.ok} OK, ${r.fixed} recovered`;
+		if (r.failed > 0) {
+			msg += `, ${r.failed} FAILED`;
+			console.error("Datasafe repair — unrecoverable files:", r.failedPaths);
 		}
-		this.recovering = false;
-		let msg = `Recovery: ${files.length} files, ${encrypted} encrypted`;
-		if (fixed > 0) msg += `, ${fixed} fixed`;
-		if (failed > 0) msg += `, ${failed} FAILED`;
-		new Notice(msg, 8000);
+		new Notice(msg, 9000);
 	}
 
 	updateStatusBar() {
@@ -833,15 +977,92 @@ export default class PasswordPlugin extends Plugin {
 		});
 	}
 
-	private async reconcileEncryptedPaths() {
+	async reconcileEncryptedPaths() {
 		this.encryptedPaths.clear();
 		const allFiles = this.app.vault.getMarkdownFiles();
 		for (const f of allFiles) {
 			const content = await this.app.vault.read(f);
-			if (content.startsWith("U2FsdGVkX1")) {
+			if (VaultCrypto.isEncrypted(content)) {
 				this.encryptedPaths.add(f.path);
 			}
 		}
+	}
+
+	/**
+	 * The ONE key used for all file encrypt/decrypt. After unlock this holds the
+	 * Master Vault Key (MVK); for legacy vaults with no MVK it is the password
+	 * hash. Empty string when locked. Everything crypto-related must call this —
+	 * never read settings.password directly for file ops.
+	 */
+	getFileKey(): string {
+		return this.settings.password || "";
+	}
+
+	/**
+	 * Rebuild the auto-lock timer to match current settings. Safe to call any
+	 * number of times. Previously referenced but never defined — its absence
+	 * threw and left the timer dead (the "10s lock does nothing" bug).
+	 */
+	refreshAutoLock() {
+		if (this.autoLockInstance) {
+			this.autoLockInstance.stopTimer();
+			this.autoLockInstance = null;
+		}
+		if (
+			this.settings.enablePass &&
+			this.settings.autoLock !== "0" &&
+			!this.settings.isLocked
+		) {
+			this.autoLockInstance = new AutoLock(this.app, this);
+			this.autoLockInstance.startTimer();
+		}
+	}
+
+	/**
+	 * Non-destructive vault repair. Recovers files corrupted by past bugs:
+	 * double/multi-layer encryption, or files encrypted under a stale key.
+	 * Tries MVK, fallback hash, and an optional recovery-code-derived key.
+	 * A file that cannot be recovered is left untouched and reported.
+	 */
+	async repairVault(recoveryCode?: string): Promise<{ ok: number; fixed: number; failed: number; failedPaths: string[] }> {
+		const files = new GetVaultFiles(this.app, this).getFiles() || [];
+		const keys: Array<string | undefined> = [
+			this.getFileKey(),
+			this.settings.fallbackPassword,
+		];
+
+		// Derive a key from the recovery code by unwrapping the MVK it protects.
+		if (recoveryCode && this.settings.recoveryEncryptedMVK) {
+			try {
+				const mvk = CryptoJS.AES.decrypt(
+					this.settings.recoveryEncryptedMVK,
+					hash(recoveryCode)
+				).toString(CryptoJS.enc.Utf8);
+				if (mvk) keys.push(mvk);
+			} catch (e) { /* ignore bad code */ }
+		}
+
+		let ok = 0, fixed = 0, failed = 0;
+		const failedPaths: string[] = [];
+
+		for (const f of files) {
+			const content = await this.app.vault.read(f);
+			if (!VaultCrypto.isEncrypted(content)) { ok++; continue; }
+
+			const result = VaultCrypto.deepDecrypt(content, keys);
+			if (result && VaultCrypto.looksLikePlaintext(result.plaintext)) {
+				await this.app.vault.modify(f, result.plaintext);
+				fixed++;
+			} else {
+				failed++;
+				failedPaths.push(f.path);
+			}
+		}
+
+		await this.reconcileEncryptedPaths();
+		this.decorateFileExplorer();
+		this.updateStatusBar();
+		return { ok, fixed, failed, failedPaths };
 	}
 
 	async changePassword(oldPass: string, newPass: string): Promise<boolean> {
@@ -876,7 +1097,7 @@ export default class PasswordPlugin extends Plugin {
 					const content = await this.app.vault.read(file);
 					let plaintext = content;
 
-					if (content.startsWith("U2FsdGVkX1")) {
+					if (VaultCrypto.isEncrypted(content)) {
 						const decrypted = CryptoJS.AES.decrypt(content, oldHash).toString(CryptoJS.enc.Utf8);
 						if (decrypted) plaintext = decrypted;
 					}
@@ -903,6 +1124,10 @@ export default class PasswordPlugin extends Plugin {
 	onunload() {
 		window.removeEventListener("blur", this.blurHandler);
 		if (this.explorerObserver) this.explorerObserver.disconnect();
+		if (this.autoLockInstance) {
+			this.autoLockInstance.stopTimer();
+			this.autoLockInstance = null;
+		}
 	}
 
 	async loadSettings() {
