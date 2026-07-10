@@ -23,26 +23,44 @@ export class ModalChangePassword extends Modal {
 
 		const box = contentEl.createDiv({ cls: "password_modal__box" });
 
-		const currentInput = box.createEl("input", {
-			type: "password",
-			placeholder: "Current password",
-		});
+		const createInputWithToggle = (parent: HTMLElement, placeholder: string) => {
+			const wrapper = parent.createDiv({ cls: "password-input-wrapper", attr: { style: "position: relative; width: 100%; margin-bottom: 10px;" } });
+			const input = wrapper.createEl("input", {
+				type: "password",
+				placeholder: placeholder,
+				attr: { style: "width: 100%; padding-right: 40px;" }
+			});
+			
+			const toggleBtn = wrapper.createEl("span", { 
+				cls: "password-toggle-btn", 
+				text: "👁️",
+				attr: { style: "position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; user-select: none;" }
+			});
+			
+			toggleBtn.addEventListener("click", () => {
+				if (input.type === "password") {
+					input.type = "text";
+					toggleBtn.innerText = "🙈";
+				} else {
+					input.type = "password";
+					toggleBtn.innerText = "👁️";
+				}
+			});
+			
+			return input;
+		};
+
+		const currentInput = createInputWithToggle(box, "Current password");
 		currentInput.addEventListener("input", (e) => {
 			this.currentPass = (e.target as HTMLInputElement).value;
 		});
 
-		const newInput = box.createEl("input", {
-			type: "password",
-			placeholder: "New password",
-		});
+		const newInput = createInputWithToggle(box, "New password");
 		newInput.addEventListener("input", (e) => {
 			this.newPass = (e.target as HTMLInputElement).value;
 		});
 
-		const confirmInput = box.createEl("input", {
-			type: "password",
-			placeholder: "Confirm new password",
-		});
+		const confirmInput = createInputWithToggle(box, "Confirm new password");
 		confirmInput.addEventListener("input", (e) => {
 			this.confirmPass = (e.target as HTMLInputElement).value;
 		});

@@ -2,7 +2,7 @@ import { App, Modal, Notice, Setting } from "obsidian";
 import main from "../main";
 import { hash } from "./hash";
 import { ModalShowRecovery } from "./modalRecovery";
-import CryptoJS from "crypto-js";
+import * as CryptoJS from "crypto-js";
 
 export class ModalSetPassword extends Modal {
 	plugin: main;
@@ -30,12 +30,35 @@ export class ModalSetPassword extends Modal {
 
 		const div_input = contentEl.createDiv({ cls: "password_modal__box" });
 
+		const createInputWithToggle = (parent: HTMLElement, placeholder: string) => {
+			const wrapper = parent.createDiv({ cls: "password-input-wrapper", attr: { style: "position: relative; width: 100%; margin-bottom: 10px;" } });
+			const input = wrapper.createEl("input", {
+				type: "password",
+				placeholder: placeholder,
+				attr: { style: "display: block; width: 100%; padding-right: 40px;" }
+			});
+			
+			const toggleBtn = wrapper.createEl("span", { 
+				cls: "password-toggle-btn", 
+				text: "👁️",
+				attr: { style: "position: absolute; right: 10px; top: 50%; transform: translateY(-50%); line-height: 0; cursor: pointer; user-select: none;" }
+			});
+			
+			toggleBtn.addEventListener("click", () => {
+				if (input.type === "password") {
+					input.type = "text";
+					toggleBtn.innerText = "🙈";
+				} else {
+					input.type = "password";
+					toggleBtn.innerText = "👁️";
+				}
+			});
+			
+			return input;
+		};
+
 		//create the inputs and put it inside the div
-		const input_pass = div_input.createEl("input", {
-			type: "password",
-			value: "",
-			placeholder: "Enter your local password",
-		});
+		const input_pass = createInputWithToggle(div_input, "Enter your local password");
 
 		//give them events
 		input_pass.addEventListener("input", (event: MouseEvent) => {
@@ -43,11 +66,7 @@ export class ModalSetPassword extends Modal {
 			this.value_pass = text.value;
 		});
 
-		const input_repass = div_input.createEl("input", {
-			type: "password",
-			value: "",
-			placeholder: "Re-enter your password",
-		});
+		const input_repass = createInputWithToggle(div_input, "Re-enter your password");
 
 		input_repass.addEventListener("input", (event: MouseEvent) => {
 			const text = event.target as HTMLInputElement;

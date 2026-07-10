@@ -15,9 +15,8 @@ export class Decrypt {
 	}
 
 	async decryptFilesInDirectory() {
-		const files = new GetVaultFiles(this.app, this.plugin).getFiles();
-		if (!files) return;
-
+		const files = this.app.vault.getMarkdownFiles().filter(f => this.plugin.encryptedPaths.has(f.path));
+		
 		for (const file of files) {
 			const content = await this.app.vault.read(file);
 
@@ -35,10 +34,22 @@ export class Decrypt {
 
 	private decryptContent(content: string): string {
 		const key = this.plugin.settings.password;
+		const fallbackKey = this.plugin.settings.fallbackPassword;
 
-		const decrypted = CryptoJS.AES.decrypt(content, key).toString(
-			CryptoJS.enc.Utf8
-		);
+		let decrypted = "";
+		try {
+			decrypted = CryptoJS.AES.decrypt(content, key).toString(CryptoJS.enc.Utf8);
+		} catch (e) {
+			// Decryption failed with primary key (Malformed UTF-8 or padding error)
+		}
+		
+		if (!decrypted && fallbackKey) {
+			try {
+				decrypted = CryptoJS.AES.decrypt(content, fallbackKey).toString(CryptoJS.enc.Utf8);
+			} catch (e) {
+				// Failed with fallback key as well
+			}
+		}
 
 		return decrypted;
 	}

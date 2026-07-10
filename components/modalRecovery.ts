@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { App, Modal, Notice, Setting, setIcon } from "obsidian";
 import main from "../main";
 import { hash } from "./hash";
 import * as CryptoJS from "crypto-js";
@@ -22,9 +22,31 @@ export class ModalShowRecovery extends Modal {
 			cls: "password_modal__alert"
 		});
 
-		const codeBox = contentEl.createEl("div", {
+		const codeWrapper = contentEl.createEl("div", {
+			attr: { style: "position: relative; margin: 15px 0;" }
+		});
+
+		const codeBox = codeWrapper.createEl("div", {
 			text: this.code,
-			attr: { style: "background: var(--background-modifier-form-field); padding: 15px; text-align: center; font-family: monospace; font-size: 1.5em; user-select: all; margin: 15px 0; border-radius: 8px; letter-spacing: 2px;" }
+			attr: { style: "background: var(--background-modifier-form-field); padding: 20px; text-align: center; font-family: monospace; font-size: 1.5em; user-select: all; border-radius: 8px; letter-spacing: 2px;" }
+		});
+
+		const copyBtn = codeWrapper.createEl("div", {
+			attr: { style: "position: absolute; top: 8px; right: 8px; padding: 6px; cursor: pointer; border-radius: 6px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; transition: background 0.2s; color: #a1a1aa;" }
+		});
+		setIcon(copyBtn, "copy");
+		
+		copyBtn.addEventListener("mouseenter", () => copyBtn.style.background = "rgba(255,255,255,0.2)");
+		copyBtn.addEventListener("mouseleave", () => copyBtn.style.background = "rgba(255,255,255,0.1)");
+		copyBtn.addEventListener("click", async () => {
+			await navigator.clipboard.writeText(this.code);
+			setIcon(copyBtn, "check");
+			copyBtn.style.color = "#22c55e";
+			new Notice("Recovery code copied to clipboard!");
+			setTimeout(() => {
+				setIcon(copyBtn, "copy");
+				copyBtn.style.color = "#a1a1aa";
+			}, 2000);
 		});
 
 		new Setting(contentEl)
@@ -93,16 +115,44 @@ export class ModalRecovery extends Modal {
 		}
 
 		new Notice("Code accepted! Please set a new password.");
-		this.close();
+		
+		// Show New Password UI Inline
+		this.contentEl.empty();
+		this.contentEl.createEl("h1", { text: "Set New Password" });
+		
+		let pass = "";
+		let repass = "";
 
-		new ModalSetPassword(this.app, this.plugin, async (newHash) => {
-			if (newHash) {
-				this.plugin.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", newHash).toString();
-				this.plugin.settings.encryptedMVK = CryptoJS.AES.encrypt(mvk, newHash).toString();
-				await this.plugin.saveSettings();
-				new Notice("Password has been reset successfully!");
-			}
-		}).open();
+		const passInput = this.contentEl.createEl("input", { type: "password", placeholder: "Enter new password", attr: { style: "width: 100%; margin: 10px 0; padding: 10px;" } });
+		passInput.addEventListener("input", (e) => pass = (e.target as HTMLInputElement).value);
+		
+		const repassInput = this.contentEl.createEl("input", { type: "password", placeholder: "Confirm new password", attr: { style: "width: 100%; margin: 10px 0; padding: 10px;" } });
+		repassInput.addEventListener("input", (e) => repass = (e.target as HTMLInputElement).value);
+
+		new Setting(this.contentEl)
+			.addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()))
+			.addButton((btn) =>
+				btn
+					.setButtonText("Reset Password")
+					.setCta()
+					.onClick(async () => {
+						if (pass !== repass) {
+							new Notice("Passwords do not match");
+							return;
+						}
+						if (pass.length === 0) {
+							new Notice("Password cannot be empty");
+							return;
+						}
+						
+						const newHash = hash(pass);
+						this.plugin.settings.passwordVerifier = CryptoJS.AES.encrypt("VALID", newHash).toString();
+						this.plugin.settings.encryptedMVK = CryptoJS.AES.encrypt(mvk, newHash).toString();
+						await this.plugin.saveSettings();
+						new Notice("Password has been reset successfully! 🔑");
+						this.close();
+					})
+			);
 	}
 
 	onClose() {

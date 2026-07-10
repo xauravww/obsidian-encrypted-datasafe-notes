@@ -11,8 +11,6 @@ Encrypted Datasafe Notes uses AES encryption to secure your markdown files on di
 ### Getting Started
 After installing and enabling the plugin, navigate to the settings to set your master password. You can also specify a particular 
 
-### 🕵️‍♂️ Plausible Deniability (Decoy Vault)
-Set a secondary **Decoy Password**. If someone forces you to unlock your vault, simply type the decoy password. The vault will successfully "unlock", but it will only reveal harmless decoy notes. Your real secrets will remain completely hidden and mathematically unreadable.
 
 ### 🚨 Panic Button (Boss Key)
 Instantly lock the entire vault, wipe the memory, and securely close all active secret notes with a single customizable hotkey. 

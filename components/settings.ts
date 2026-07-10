@@ -4,15 +4,16 @@ import { ModalSetPassword } from "components/modalSetPassword";
 import { ModalChangePassword } from "./modalChangePassword";
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { GetVaultFiles } from "./getMDFiles";
+import { FolderSuggestModal } from "./modalFolderSuggest";
 import * as CryptoJS from "crypto-js";
 
 export interface PluginSettings {
 	password: string;
 	passwordVerifier: string;
-	decoyPasswordVerifier: string;
 	encryptedMVK: string;
 	recoveryEncryptedMVK: string;
 	hideEncrypted: boolean;
+	showCustomSettingsIcon: boolean;
 	enablePass: boolean;
 	animations: boolean;
 	fileEncrypt: { encrypt: boolean; isAlreadyEncrypted: boolean };
@@ -21,15 +22,16 @@ export interface PluginSettings {
 	isLocked: boolean;
 	lockOnBlur: boolean;
 	searchDecrypt: boolean;
+	fallbackPassword?: string;
 }
 
 export const DEFAULT_SETTINGS: Partial<PluginSettings> = {
 	password: "",
 	passwordVerifier: "",
-	decoyPasswordVerifier: "",
 	encryptedMVK: "",
 	recoveryEncryptedMVK: "",
 	hideEncrypted: false,
+	showCustomSettingsIcon: true,
 	enablePass: false,
 	animations: true,
 	fileEncrypt: { encrypt: false, isAlreadyEncrypted: false },
@@ -56,6 +58,19 @@ export class SettingsTab extends PluginSettingTab {
 		this.containerEl.createEl("h2", {
 			text: "Set a password",
 		});
+
+		new Setting(containerEl)
+			.setName("Show custom settings icon in sidebar")
+			.setDesc("Enable to show a gear icon in the left ribbon that opens the premium custom settings modal.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showCustomSettingsIcon)
+					.onChange(async (value) => {
+						this.plugin.settings.showCustomSettingsIcon = value;
+						await this.plugin.saveSettings();
+						this.plugin.updateSettingsRibbon();
+					})
+			);
 
 		new Setting(containerEl)
 			.setName("Enable/Disable the password")
@@ -139,6 +154,16 @@ export class SettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			})
+			.addButton((btn) => 
+				btn.setButtonText("Browse")
+				.onClick(() => {
+					new FolderSuggestModal(this.app, async (folder) => {
+						this.plugin.settings.folder = folder ? folder.path : "";
+						await this.plugin.saveSettings();
+						this.display();
+					}).open();
+				})
+			)
 			.setDisabled(this.plugin.settings.enablePass);
 
 		new Setting(containerEl)
@@ -210,25 +235,10 @@ export class SettingsTab extends PluginSettingTab {
 		this.containerEl.createEl("h2", {
 			text: "🕵️‍♂️ Plausible Deniability (Decoy Vault)",
 		});
-
-		new Setting(containerEl)
-			.setName("Set decoy password")
-			.setDesc("If forced to unlock your vault, entering this fake password will safely unlock an alternative set of notes while keeping your real secrets encrypted.")
-			.setDisabled(!this.plugin.settings.enablePass)
-			.addButton((btn) =>
-				btn.setButtonText("Set Decoy").onClick(() => {
-					new ModalSetPassword(this.app, this.plugin, async (newHash) => {
-						if (newHash) {
-							this.plugin.settings.decoyPasswordVerifier = CryptoJS.AES.encrypt("VALID", newHash).toString();
-							await this.plugin.saveSettings();
-						}
-					}, true).open();
-				})
-			);
 			
 		new Setting(containerEl)
 			.setName("Hide encrypted files from file explorer")
-			.setDesc("When the vault is locked (or you log in with a decoy), encrypted files will completely vanish from the left sidebar so an attacker doesn't know they exist.")
+			.setDesc("When the vault is locked, encrypted files will completely vanish from the left sidebar so an attacker doesn't know they exist.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.hideEncrypted)

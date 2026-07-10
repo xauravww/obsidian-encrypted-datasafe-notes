@@ -120,3 +120,487 @@ body.agy-hide-encrypted .nav-file-title.is-encrypted {
 		transform: translate(1px, -2px) rotate(-1deg);
 	}
 }
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600&display=swap');
+
+.custom-settings-modal .modal {
+    background: linear-gradient(145deg, #0f0f11, #16161a);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    padding: 0;
+    overflow: hidden;
+    max-width: 650px;
+}
+
+.cs-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.cs-header {
+    padding: 40px 40px 20px;
+    background: radial-gradient(circle at top right, rgba(147, 51, 234, 0.15) 0%, transparent 60%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.cs-title {
+    font-family: 'Cinzel', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #e5e5e5;
+    margin: 0 0 8px 0;
+    letter-spacing: 0.5px;
+}
+
+.cs-subtitle {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: #8b8b93;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.cs-content {
+    padding: 20px 40px 40px;
+    overflow-y: auto;
+}
+
+.cs-section {
+    margin-top: 32px;
+}
+
+.cs-section:first-child {
+    margin-top: 10px;
+}
+
+.cs-section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #a78bfa;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+    padding-bottom: 8px;
+}
+
+.custom-settings-modal .setting-item {
+    font-family: 'Manrope', sans-serif;
+    border: none;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.custom-settings-modal .setting-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+}
+
+.custom-settings-modal .setting-item-name {
+    font-weight: 600;
+    color: #d1d1d5;
+    font-size: 15px;
+}
+
+.custom-settings-modal .setting-item-description {
+    color: #8b8b93;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.custom-settings-modal button.mod-cta {
+    background: #7c3aed;
+    color: white;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 6px 16px;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-settings-modal button.mod-cta:hover {
+    background: #6d28d9;
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Mac Style Custom Settings Modal */
+
+.mac-settings-modal .modal {
+    background: rgba(18, 18, 22, 0.85);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    padding: 0;
+    overflow: hidden;
+    width: 800px;
+    max-width: 90vw;
+    height: 550px;
+    max-height: 90vh;
+}
+
+.mac-container {
+    display: flex;
+    height: 100%;
+}
+
+/* Sidebar */
+.mac-sidebar {
+    width: 240px;
+    background: rgba(0, 0, 0, 0.2);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.mac-sidebar-header {
+    padding: 16px 20px;
+}
+
+.mac-traffic-lights {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.mac-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.mac-light:hover {
+    opacity: 0.8;
+}
+
+.mac-close { background: #ff5f56; border: 1px solid #e0443e; }
+.mac-min { background: #ffbd2e; border: 1px solid #dea123; }
+.mac-max { background: #27c93f; border: 1px solid #1aab29; }
+
+.mac-brand {
+    font-family: 'Cinzel', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #e5e5e5;
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.mac-nav {
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mac-nav-item {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #a1a1aa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s;
+}
+
+.mac-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e5e5e5;
+}
+
+.mac-nav-item.active {
+    background: #7c3aed;
+    color: white;
+    font-weight: 600;
+}
+
+.mac-nav-icon {
+    font-size: 16px;
+}
+
+/* Content Area */
+.mac-content-area {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    background: transparent;
+}
+
+.mac-scroll-area {
+    padding: 40px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.mac-page-title {
+    font-family: 'Cinzel', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #f4f4f5;
+    margin: 0 0 8px 0;
+}
+
+.mac-page-subtitle {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: #a1a1aa;
+    margin: 0 0 32px 0;
+}
+
+.mac-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 8px 20px;
+    margin-bottom: 24px;
+}
+
+.mac-card .setting-item {
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 20px 0;
+    margin: 0;
+}
+
+.mac-card .setting-item:last-child {
+    border-bottom: none;
+}
+
+.mac-card .setting-item-name {
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #e5e5e5;
+}
+
+.mac-card .setting-item-description {
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    color: #8b8b93;
+    margin-top: 4px;
+}
+
+/* Buttons */
+.mac-btn-primary {
+    background: #7c3aed !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    padding: 6px 16px !important;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+}
+
+.mac-btn-secondary {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #e5e5e5 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    padding: 6px 16px !important;
+}
+
+.mac-btn-danger {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    padding: 6px 16px !important;
+}
+
+.mac-warning-text {
+    font-family: 'Manrope', sans-serif;
+    color: #ef4444;
+    padding: 16px 0;
+    margin: 0;
+}
+
+/* Remove Obsidian default close button explicitly again just in case */
+.mac-settings-modal .modal-close-button {
+    display: none !important;
+}
+
+/* Full Page Custom Settings Tab */
+
+.mac-settings-view {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #0f0f11 !important;
+    height: 100%;
+}
+
+.mac-settings-view .mac-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+
+.mac-settings-view .mac-sidebar {
+    width: 260px;
+    background: rgba(255, 255, 255, 0.02);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.mac-settings-view .mac-sidebar-header {
+    padding: 32px 24px;
+}
+
+.mac-settings-view .mac-brand {
+    font-family: 'Cinzel', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #e5e5e5;
+    margin: 0;
+    letter-spacing: 1.5px;
+}
+
+.mac-settings-view .mac-nav {
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mac-settings-view .mac-nav-item {
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: #a1a1aa;
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.2s;
+}
+
+.mac-settings-view .mac-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e5e5e5;
+}
+
+.mac-settings-view .mac-nav-item.active {
+    background: rgba(124, 58, 237, 0.15);
+    color: #a78bfa;
+    font-weight: 600;
+    border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+.mac-settings-view .mac-nav-icon {
+    font-size: 18px;
+}
+
+/* Content Area */
+.mac-settings-view .mac-content-area {
+    flex: 1;
+    overflow-y: auto;
+    background: radial-gradient(circle at top right, rgba(124, 58, 237, 0.05) 0%, transparent 60%);
+}
+
+.mac-settings-view .mac-scroll-area {
+    padding: 32px 40px;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.mac-settings-view .mac-page-title {
+    font-family: 'Cinzel', serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: #f4f4f5;
+    margin: 0 0 12px 0;
+}
+
+.mac-settings-view .mac-page-subtitle {
+    font-family: 'Manrope', sans-serif;
+    font-size: 16px;
+    color: #a1a1aa;
+    margin: 0 0 48px 0;
+    line-height: 1.5;
+}
+
+.mac-settings-view .mac-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 16px;
+    padding: 12px 24px;
+    margin-bottom: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.mac-settings-view .mac-card .setting-item {
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+    padding: 24px 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+.mac-settings-view .mac-card .setting-item:last-child {
+    border-bottom: none !important;
+}
+
+.mac-settings-view .mac-card .setting-item-name {
+    font-family: 'Manrope', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #e5e5e5;
+}
+
+.mac-settings-view .mac-card .setting-item-description {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: #8b8b93;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .mac-settings-view .mac-container {
+        flex-direction: column;
+    }
+    .mac-settings-view .mac-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .mac-settings-view .mac-nav {
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 0 16px 16px;
+    }
+    .mac-settings-view .mac-scroll-area {
+        padding: 32px 20px;
+    }
+}
+
+.agy-is-encrypted-view .markdown-source-view,
+.agy-is-encrypted-view .view-actions .view-action[aria-label="Current view: Reading"] {
+	pointer-events: none !important;
+	opacity: 0.5;
+	display: none !important;
+}
+
+.agy-is-encrypted-view .markdown-reading-view {
+	user-select: all;
+}

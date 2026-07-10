@@ -16,10 +16,17 @@ export class FolderLock {
 			this.app,
 			this.plugin,
 			true,
-			() => {},
+			() => {
+				this.plugin.encryptedPaths.clear();
+				this.plugin.updateRibbonIcon();
+				this.plugin.updateStatusBar();
+				this.plugin.decorateFileExplorer();
+			},
 			() => {
 				const activeLeaf = this.app.workspace.activeLeaf;
-				if (activeLeaf) activeLeaf.detach();
+				if (activeLeaf && activeLeaf.view.getViewType() === "markdown") {
+					activeLeaf.detach();
+				}
 			}
 		).open();
 	}

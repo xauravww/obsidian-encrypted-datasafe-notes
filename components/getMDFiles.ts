@@ -22,7 +22,7 @@ export class GetVaultFiles {
 			if (folder instanceof TFolder) {
 				files = this.getFilesInFolder(folder);
 			} else {
-				return;
+				return files;
 			}
 		} else {
 			files = this.app.vault.getFiles().filter((f) =>
