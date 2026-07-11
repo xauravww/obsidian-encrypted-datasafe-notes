@@ -1,6 +1,6 @@
 {
 	"name": "encrypted-datasafe-notes",
-	"version": "3.0.0",
+	"version": "3.0.1",
 	"description": "Password-protect and encrypt notes. Features: lock/unlock with dynamic icon, corruption recovery, encryption status viewer.",
 	"main": "main.js",
 	"scripts": {

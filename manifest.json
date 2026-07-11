@@ -1,7 +1,7 @@
 {
 	"id": "encrypted-datasafe-notes",
 	"name": "Encrypted Datasafe Notes",
-	"version": "3.0.0",
+	"version": "3.0.1",
 	"minAppVersion": "1.6.0",
 	"description": "AES-encrypt markdown notes with lock/unlock vault, auto-lock timer, right-click encrypt/decrypt, corruption recovery, search decrypt, status bar indicator, file explorer decorations, and password change.",
 	"author": "xauravww",
